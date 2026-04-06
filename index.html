@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>層積検尺アプリ</title>
+    <style>
+        body { font-family: -apple-system, sans-serif; padding: 10px; background: #fdf5e6; color: #333; margin: 0; padding-bottom: 40px; }
+        .card { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 15px; }
+        .header { border-bottom: 2px solid #8b4513; margin-bottom: 10px; padding-bottom: 5px; }
+        h2 { margin: 0; font-size: 1.2em; color: #5d4037; }
+        
+        .btn { display: block; width: 100%; padding: 12px; border: none; border-radius: 6px; font-weight: bold; font-size: 1rem; color: white; margin-bottom: 10px; cursor: pointer; text-align: center; }
+        .btn-blue { background: #1565c0; }
+        .btn-green { background: #2e7d32; }
+        .btn-orange { background: #e65100; }
+        .btn-gray { background: #757575; }
+
+        #canvas-container { position: relative; width: 100%; max-height: 60vh; overflow: auto; border: 1px solid #ccc; background: #000; border-radius: 8px; margin-bottom: 10px; text-align: center; }
+        canvas { max-width: 100%; height: auto; display: block; margin: 0 auto; touch-action: none; }
+        
+        .control-group { margin-bottom: 15px; background: #fff3e0; padding: 10px; border-radius: 8px; border: 1px solid #ffcc80; }
+        label { font-weight: bold; font-size: 0.9em; display: block; margin-bottom: 5px; color: #5d4037;}
+        input[type="range"] { width: 100%; margin: 10px 0; }
+        input[type="number"] { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 1rem; box-sizing: border-box; margin-bottom: 5px;}
+        
+        .result-box { background: #e8f5e9; border: 2px solid #4caf50; padding: 15px; border-radius: 8px; text-align: center; font-size: 1.2em; font-weight: bold; color: #1b5e20; }
+        #status-text { color: #d32f2f; font-weight: bold; font-size: 0.9em; margin-bottom: 10px; text-align: center; }
+        
+        .color-preview { display: inline-block; width: 20px; height: 20px; border: 1px solid #000; vertical-align: middle; margin-left: 10px; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <div class="header"><h2>層積検尺 <span style="font-size:0.7em; color:#757575;">(C材概算用)</span></h2></div>
+    
+    <label class="btn btn-blue">
+        📸 写真を撮る / 選ぶ
+        <input type="file" id="imageInput" accept="image/*" capture="environment" style="display: none;">
+    </label>
+
+    <div id="status-text">1. 写真を読み込んでください</div>
+
+    <div id="canvas-container">
+        <canvas id="mainCanvas"></canvas>
+    </div>
+
+    <div class="control-group">
+        <label>① 抽出する色（丸太の断面をタップ） <span id="colorBox" class="color-preview"></span></label>
+        <button class="btn btn-gray" id="btnPickColor" onclick="setMode('color')">👆 基準の色をスポイトで取る</button>
+        
+        <label>② 色の許容範囲 (スライダーで調整)</label>
+        <input type="range" id="toleranceSlider" min="10" max="150" value="40" oninput="processColor()">
+    </div>
+
+    <div class="control-group">
+        <label>③ 測量ポールで縮尺を設定（画面上の両端をタップ）</label>
+        <button class="btn btn-orange" id="btnSetScale" onclick="setMode('scale')">📏 ポールの両端を2箇所タップする</button>
+        <div style="display: flex; gap: 10px; margin-top: 10px;">
+            <div style="flex: 1;">
+                <label>ポールの実寸(m)</label>
+                <input type="number" id="poleLength" value="2.0" step="0.1" onchange="calculateVolume()">
+            </div>
+            <div style="flex: 1;">
+                <label>丸太の奥行き(m)</label>
+                <input type="number" id="logDepth" value="4.0" step="0.1" onchange="calculateVolume()">
+            </div>
+        </div>
+    </div>
+
+    <div class="result-box">
+        概算材積: <span id="resultVolume" style="font-size: 1.5em; color: #d32f2f;">0.000</span> m³
+        <div style="font-size: 0.6em; color: #555; margin-top: 5px;">
+            抽出面積: <span id="resultArea">0.00</span> m² / ピクセル数: <span id="pixelCount">0</span> px
+        </div>
+    </div>
+</div>
+
+<script>
+    const imageInput = document.getElementById('imageInput');
+    const canvas = document.getElementById('mainCanvas');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    const statusText = document.getElementById('status-text');
+    const toleranceSlider = document.getElementById('toleranceSlider');
+    
+    let originalImage = null;
+    let targetColor = { r: 139, g: 69, b: 19 }; // 初期値（茶色）
+    let currentMode = 'none'; // 'color', 'scale1', 'scale2'
+    let scalePoints = [];
+    let pixelsPerMeter = 0;
+    let extractedPixelCount = 0;
+
+    // 画像読み込み
+    imageInput.addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = function(event) {
+            const img = new Image();
+            img.onload = function() {
+                // スマホで重くならないよう最大幅を1200pxに制限
+                const maxWidth = 1200;
+                let width = img.width;
+                let height = img.height;
+                if (width > maxWidth) {
+                    height = Math.floor(height * (maxWidth / width));
+                    width = maxWidth;
+                }
+                canvas.width = width;
+                canvas.height = height;
+                ctx.drawImage(img, 0, 0, width, height);
+                originalImage = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                statusText.innerText = "2. 「スポイトで取る」を押して、丸太の色をタップ";
+                statusText.style.color = "#1565c0";
+            }
+            img.src = event.target.result;
+        }
+        reader.readAsDataURL(file);
+    });
+
+    function setMode(mode) {
+        if (!originalImage) return alert("先に写真を読み込んでください");
+        currentMode = mode;
+        if (mode === 'color') {
+            statusText.innerText = "👆 画像内の【丸太の茶色い部分】をタップしてください";
+            statusText.style.color = "#d32f2f";
+        } else if (mode === 'scale') {
+            currentMode = 'scale1';
+            scalePoints = [];
+            statusText.innerText = "📏 測量ポールの【1点目】をタップしてください";
+            statusText.style.color = "#e65100";
+            // 画面をオリジナル画像に戻す
+            ctx.putImageData(originalImage, 0, 0);
+        }
+    }
+
+    // キャンバスのタップ処理
+    canvas.addEventListener('click', function(e) {
+        if (currentMode === 'none') return;
+        
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        const x = Math.floor((e.clientX - rect.left) * scaleX);
+        const y = Math.floor((e.clientY - rect.top) * scaleY);
+
+        if (currentMode === 'color') {
+            // スポイト機能
+            const pixel = originalImage.data;
+            const index = (y * canvas.width + x) * 4;
+            targetColor = { r: pixel[index], g: pixel[index+1], b: pixel[index+2] };
+            document.getElementById('colorBox').style.backgroundColor = `rgb(${targetColor.r},${targetColor.g},${targetColor.b})`;
+            
+            currentMode = 'none';
+            statusText.innerText = "スライダーを動かして、抽出具合を調整してください";
+            statusText.style.color = "#2e7d32";
+            processColor(); // 直ちに抽出テストを実行
+
+        } else if (currentMode === 'scale1') {
+            scalePoints.push({x, y});
+            drawPoint(x, y, '#00ff00');
+            currentMode = 'scale2';
+            statusText.innerText = "📏 測量ポールの【2点目】をタップしてください";
+            
+        } else if (currentMode === 'scale2') {
+            scalePoints.push({x, y});
+            drawPoint(x, y, '#00ff00');
+            drawLine(scalePoints[0], scalePoints[1], '#00ff00');
+            
+            // ピクセル距離の計算
+            const dx = scalePoints[1].x - scalePoints[0].x;
+            const dy = scalePoints[1].y - scalePoints[0].y;
+            const pixelDist = Math.sqrt(dx*dx + dy*dy);
+            
+            const realPoleMeters = parseFloat(document.getElementById('poleLength').value);
+            pixelsPerMeter = pixelDist / realPoleMeters; // 1mあたりのピクセル数
+            
+            currentMode = 'none';
+            statusText.innerText = "✅ 準備完了！スライダーで丸太を抽出し、材積を確認してください";
+            statusText.style.color = "#2e7d32";
+            processColor(); // 抽出状態に戻して計算
+        }
+    });
+
+    // 色の抽出処理（スライダーを動かすと呼ばれる）
+    function processColor() {
+        if (!originalImage) return;
+        
+        const tolerance = parseInt(toleranceSlider.value);
+        // 新しい画像データを作成（ベースは元画像）
+        const newImgData = new ImageData(
+            new Uint8ClampedArray(originalImage.data), 
+            originalImage.width, 
+            originalImage.height
+        );
+        const data = newImgData.data;
+        
+        extractedPixelCount = 0;
+
+        for (let i = 0; i < data.length; i += 4) {
+            const r = data[i];
+            const g = data[i+1];
+            const b = data[i+2];
+            
+            // ユークリッド距離で色の近さを判定
+            const distance = Math.sqrt(
+                Math.pow(r - targetColor.r, 2) + 
+                Math.pow(g - targetColor.g, 2) + 
+                Math.pow(b - targetColor.b, 2)
+            );
+
+            if (distance < tolerance) {
+                // 丸太と判定されたピクセルを「半透明の赤」で塗りつぶす
+                data[i] = 255;   // R
+                data[i+1] = 0;   // G
+                data[i+2] = 0;   // B
+                // data[i+3] = 255 (Alpha) は元のまま
+                extractedPixelCount++;
+            }
+        }
+        
+        ctx.putImageData(newImgData, 0, 0);
+        
+        // スケール線が設定されていれば再描画
+        if (scalePoints.length === 2) {
+            drawPoint(scalePoints[0].x, scalePoints[0].y, '#00ff00');
+            drawPoint(scalePoints[1].x, scalePoints[1].y, '#00ff00');
+            drawLine(scalePoints[0], scalePoints[1], '#00ff00');
+        }
+        
+        document.getElementById('pixelCount').innerText = extractedPixelCount.toLocaleString();
+        calculateVolume();
+    }
+
+    // 体積計算
+    function calculateVolume() {
+        if (pixelsPerMeter === 0 || extractedPixelCount === 0) return;
+        
+        // 1ピクセルあたりの面積(m2) = (1 / pixelsPerMeter) ^ 2
+        const meterPerPixel = 1 / pixelsPerMeter;
+        const areaPerPixel = meterPerPixel * meterPerPixel;
+        
+        // 総断面積(m2)
+        const totalAreaM2 = extractedPixelCount * areaPerPixel;
+        
+        // 奥行き(m)を掛けて材積(m3)を出す
+        const depthM = parseFloat(document.getElementById('logDepth').value) || 4.0;
+        const volumeM3 = totalAreaM2 * depthM;
+        
+        document.getElementById('resultArea').innerText = totalAreaM2.toFixed(3);
+        document.getElementById('resultVolume').innerText = volumeM3.toFixed(3);
+    }
+
+    // 描画ヘルパー
+    function drawPoint(x, y, color) {
+        ctx.beginPath();
+        ctx.arc(x, y, 8, 0, 2 * Math.PI);
+        ctx.fillStyle = color;
+        ctx.fill();
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = '#fff';
+        ctx.stroke();
+    }
+    
+    function drawLine(p1, p2, color) {
+        ctx.beginPath();
+        ctx.moveTo(p1.x, p1.y);
+        ctx.lineTo(p2.x, p2.y);
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 4;
+        ctx.stroke();
+    }
+</script>
+</body>
+</html>
