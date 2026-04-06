@@ -3,7 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>層積検尺アプリ</title>
+    <title>層積検尺</title>
+    
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#8b4513">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <meta name="apple-mobile-web-app-title" content="層積検尺">
+    <link rel="apple-touch-icon" href="icon-192.png">
+
     <style>
         body { font-family: -apple-system, sans-serif; padding: 10px; background: #fdf5e6; color: #333; margin: 0; padding-bottom: 40px; }
         .card { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 15px; }
@@ -38,7 +46,7 @@
 <body>
 
 <div class="card">
-    <div class="header"><h2>層積検尺 <span style="font-size:0.7em; color:#757575;">(C材概算用)</span></h2></div>
+    <div class="header"><h2>層積検尺 v1.0<span style="font-size:0.7em; color:#757575;">(C材等概算用)</span></h2></div>
     
     <label class="btn btn-blue">
         📸 写真を撮る / 選ぶ
@@ -90,6 +98,15 @@
 </div>
 
 <script>
+    // ★サービスワーカーの登録（PWA化の要）
+    window.addEventListener('load', () => {
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('./sw.js')
+                .then(reg => console.log('ServiceWorker registered!', reg))
+                .catch(err => console.log('ServiceWorker failed!', err));
+        }
+    });
+
     const imageInput = document.getElementById('imageInput');
     const canvas = document.getElementById('mainCanvas');
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
@@ -260,7 +277,7 @@
         const depthM = parseFloat(document.getElementById('logDepth').value) || 4.0;
         let volumeM3 = totalAreaM2 * depthM;
         
-        // ★追加：断面補正（末口自乗法への換算）
+        // 断面補正（末口自乗法への換算）
         if (document.getElementById('correctionToggle').checked) {
             volumeM3 = volumeM3 * (4 / 3.141);
         }
