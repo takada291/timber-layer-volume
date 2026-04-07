@@ -1,4 +1,4 @@
-const CACHE_NAME = 'timber-layer-cache-v1';
+const CACHE_NAME = 'timber-layer-cache-v1.2';
 const urlsToCache = [
   './',
   './index.html',
