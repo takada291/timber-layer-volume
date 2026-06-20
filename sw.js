@@ -1,4 +1,4 @@
-const CACHE_NAME = 'timber-layer-cache-v1.2'; // ★バージョン名（更新のたびに数字を変えると強力です）
+const CACHE_NAME = 'timber-layer-cache-v1.2.1'; // ★バージョン名（更新のたびに数字を変えると強力です）
 const urlsToCache = [
   './',
   './index.html',
