@@ -45,7 +45,7 @@
         .result-box { background: #e8f5e9; border: 2px solid #4caf50; padding: 15px; border-radius: 8px; text-align: center; font-size: 1.2em; font-weight: bold; color: #1b5e20; }
         #status-text { color: #d32f2f; font-weight: bold; font-size: 0.9em; margin-bottom: 10px; text-align: center; }
         
-        .color-preview { display: inline-block; width: 20px; height: 20px; border: 1px solid #000; vertical-align: middle; margin-left: 10px; }
+        .color-preview { display: block; width: 100%; height: 25px; border: 1px solid #999; margin-bottom: 5px; border-radius: 4px; }
         
         .toggle-box { margin-top: 15px; padding: 10px; background: #fff; border-radius: 6px; border: 1px solid #ccc; }
         .toggle-label { display: flex; align-items: center; margin: 0; color: #1565c0; cursor: pointer; }
@@ -61,7 +61,7 @@
 <body>
 
 <div class="card">
-    <div class="header"><h2>層積検尺 v1.2<span style="font-size:0.7em; color:#757575;">(C材概算用)</span></h2></div>
+    <div class="header"><h2>層積検尺 v1.3<span style="font-size:0.7em; color:#757575;"> (マルチカラー対応)</span></h2></div>
     
     <label class="btn btn-blue">
         📸 写真を撮る / 選ぶ
@@ -74,11 +74,26 @@
         <canvas id="mainCanvas"></canvas>
     </div>
 
+    <!-- ★ 改良：マルチスポイトUI -->
     <div class="control-group">
-        <label>① 抽出する色（丸太の断面をタップ） <span id="colorBox" class="color-preview"></span></label>
-        <button class="btn btn-gray" id="btnPickColor" onclick="setMode('color')">👆 基準の色をスポイトで取る</button>
+        <label>① 抽出する色（最大3色まで追加可能）</label>
+        <div style="display: flex; gap: 5px; margin-bottom: 10px;">
+            <div style="flex: 1; text-align: center;">
+                <span id="colorBox1" class="color-preview" style="background: rgb(139, 69, 19);"></span>
+                <button class="btn btn-gray" style="padding: 8px; font-size: 0.8em; margin:0;" onclick="setMode('color1')">👆 色1</button>
+            </div>
+            <div style="flex: 1; text-align: center;">
+                <span id="colorBox2" class="color-preview" style="background: #eee;"></span>
+                <button class="btn btn-gray" style="padding: 8px; font-size: 0.8em; margin:0;" onclick="setMode('color2')">👆 色2</button>
+            </div>
+            <div style="flex: 1; text-align: center;">
+                <span id="colorBox3" class="color-preview" style="background: #eee;"></span>
+                <button class="btn btn-gray" style="padding: 8px; font-size: 0.8em; margin:0;" onclick="setMode('color3')">👆 色3</button>
+            </div>
+        </div>
+        <button class="btn btn-gray" style="background: #e57373; padding: 6px; font-size: 0.8em;" onclick="clearExtraColors()">🗑 色2・色3をリセット</button>
         
-        <label>② 色の許容範囲 (スライダーで調整)</label>
+        <label style="margin-top: 10px;">② 色の許容範囲 (スライダーで調整)</label>
         <input type="range" id="toleranceSlider" min="10" max="150" value="40" oninput="processColor()">
     </div>
 
@@ -113,7 +128,7 @@
         </div>
         <label>ブラシの太さ</label>
         <input type="range" id="brushSizeSlider" min="5" max="100" value="30">
-        <button class="btn btn-gray" style="background: #607d8b; padding: 8px; margin-bottom: 0;" onclick="resetColor()">🔄 抽出をリセット（やり直し）</button>
+        <button class="btn btn-gray" style="background: #607d8b; padding: 8px; margin-bottom: 0;" onclick="resetColorMask()">🔄 抽出をリセット（やり直し）</button>
     </div>
 
     <div class="result-box">
@@ -125,12 +140,10 @@
 </div>
 
 <script>
-    // サービスワーカーの登録
     window.addEventListener('load', () => {
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('./sw.js')
-                .then(reg => console.log('ServiceWorker registered!', reg))
-                .catch(err => console.log('ServiceWorker failed!', err));
+                .catch(err => console.log('SW failed!', err));
         }
     });
 
@@ -142,18 +155,23 @@
     const brushSizeSlider = document.getElementById('brushSizeSlider');
     
     let originalImage = null;
-    let targetColor = { r: 139, g: 69, b: 19 }; // 初期値（茶色）
-    let currentMode = 'eraser'; // デフォルトは消しゴム 'pan', 'color', 'scale1', 'scale2', 'eraser', 'paint'
+    
+    // ★ 改良：ターゲット色を配列で管理（最大3色）
+    let targetColors = [
+        { r: 139, g: 69, b: 19, active: true },
+        { r: 0, g: 0, b: 0, active: false },
+        { r: 0, g: 0, b: 0, active: false }
+    ];
+    
+    let currentMode = 'eraser'; // 'pan', 'color1', 'color2', 'color3', 'scale1', 'scale2', 'eraser', 'paint'
     let scalePoints = [];
     let pixelsPerMeter = 0;
     let extractedPixelCount = 0;
 
-    // お絵描き（消しゴム）用
     let isDrawing = false;
-    let extractedMaskCanvas = null; // 抽出結果だけを保持する裏キャンバス
+    let extractedMaskCanvas = null; 
     let extractedMaskCtx = null;
 
-    // 画像読み込み
     imageInput.addEventListener('change', function(e) {
         const file = e.target.files[0];
         if (!file) return;
@@ -173,7 +191,6 @@
                 ctx.drawImage(img, 0, 0, width, height);
                 originalImage = ctx.getImageData(0, 0, canvas.width, canvas.height);
                 
-                // マスクキャンバスの初期化
                 if (!extractedMaskCanvas) {
                     extractedMaskCanvas = document.createElement('canvas');
                 }
@@ -182,7 +199,7 @@
                 extractedMaskCtx = extractedMaskCanvas.getContext('2d', { willReadFrequently: true });
                 extractedMaskCtx.clearRect(0, 0, width, height);
                 
-                statusText.innerText = "2. 「スポイト」で丸太の色を取り、スライダーで抽出";
+                statusText.innerText = "2. スポイトで丸太の様々な色を取り、抽出幅を調整";
                 statusText.style.color = "#1565c0";
             }
             img.src = event.target.result;
@@ -194,7 +211,6 @@
         if (!originalImage) return alert("先に写真を読み込んでください");
         currentMode = mode;
         
-        // ツールのボタンの見た目を更新
         const tools = ['pan', 'eraser', 'paint'];
         tools.forEach(t => {
             const btn = document.getElementById(`tool-${t}`);
@@ -202,8 +218,9 @@
             else btn.classList.remove('active');
         });
 
-        if (mode === 'color') {
-            statusText.innerText = "👆 画像内の【丸太の茶色い部分】をタップしてください";
+        if (mode.startsWith('color')) {
+            const num = mode.replace('color', '');
+            statusText.innerText = `👆 画像内の【色${num}】に設定したい丸太をタップしてください`;
             statusText.style.color = "#d32f2f";
         } else if (mode === 'scale') {
             currentMode = 'scale1';
@@ -211,12 +228,20 @@
             statusText.innerText = "📏 測量ポールの【1点目】をタップしてください";
             statusText.style.color = "#e65100";
         } else if (mode === 'eraser' || mode === 'paint') {
-            statusText.innerText = "🎨 白い部分（消しゴム）で不要な赤色をなぞって消します。赤いブラシは書き足し。";
+            statusText.innerText = "🎨 白い部分（消しゴム）で不要な赤色をなぞって消します。";
             statusText.style.color = "#01579b";
         }
     }
 
-    // キャンバスのタップ・描画処理（マウス・タッチ統合）
+    // ★ 改良：余分な色をリセットする機能
+    function clearExtraColors() {
+        targetColors[1].active = false;
+        targetColors[2].active = false;
+        document.getElementById('colorBox2').style.backgroundColor = '#eee';
+        document.getElementById('colorBox3').style.backgroundColor = '#eee';
+        processColor();
+    }
+
     function getCanvasCoords(e) {
         const rect = canvas.getBoundingClientRect();
         const scaleX = canvas.width / rect.width;
@@ -242,7 +267,7 @@
 
     canvas.addEventListener('touchstart', (e) => {
         if (currentMode === 'eraser' || currentMode === 'paint') {
-            e.preventDefault(); // スクロール防止
+            e.preventDefault(); 
             startDrawing(e);
         }
     });
@@ -257,8 +282,8 @@
     function startDrawing(e) {
         if (currentMode === 'eraser' || currentMode === 'paint') {
             isDrawing = true;
-            draw(e); // 開始点を描画
-        } else if (currentMode === 'color' || currentMode === 'scale1' || currentMode === 'scale2') {
+            draw(e); 
+        } else if (currentMode.startsWith('color') || currentMode.startsWith('scale')) {
             handleSingleTap(e);
         }
     }
@@ -266,8 +291,8 @@
     function stopDrawing() {
         if (isDrawing) {
             isDrawing = false;
-            extractedMaskCtx.beginPath(); // パスをリセット
-            finalComposite(); // 描画内容を反映して計算
+            extractedMaskCtx.beginPath(); 
+            finalComposite(); 
         }
     }
 
@@ -281,41 +306,39 @@
         extractedMaskCtx.lineCap = 'round';
 
         if (currentMode === 'eraser') {
-            // 消しゴム：マスクキャンバスを透明にする
             extractedMaskCtx.globalCompositeOperation = 'destination-out';
             extractedMaskCtx.strokeStyle = 'rgba(0,0,0,1)'; 
         } else if (currentMode === 'paint') {
-            // 書き足し：マスクキャンバスに不透明な色を塗る
             extractedMaskCtx.globalCompositeOperation = 'source-over';
-            extractedMaskCtx.strokeStyle = 'rgba(255,0,0,1)'; // 色は何でも良い（不透明なら）
+            extractedMaskCtx.strokeStyle = 'rgba(255,0,0,1)';
         } else {
             return;
         }
 
-        // 描画
         extractedMaskCtx.lineTo(x, y);
         extractedMaskCtx.stroke();
         extractedMaskCtx.beginPath();
         extractedMaskCtx.moveTo(x, y);
         
-        // 描画中の結果を表示（リアルタイムフィードバック）
         compositeDuringDrawing(); 
     }
 
-    // 単発タップ処理（スポイト、スケール）
     function handleSingleTap(e) {
         if (!originalImage) return;
         
         const {x, y} = getCanvasCoords(e);
 
-        if (currentMode === 'color') {
+        // ★ 改良：タップした色を特定のスポイト番号に保存
+        if (currentMode.startsWith('color')) {
+            const indexColor = parseInt(currentMode.replace('color', '')) - 1;
             const pixel = originalImage.data;
             const index = (y * canvas.width + x) * 4;
-            targetColor = { r: pixel[index], g: pixel[index+1], b: pixel[index+2] };
-            document.getElementById('colorBox').style.backgroundColor = `rgb(${targetColor.r},${targetColor.g},${targetColor.b})`;
             
-            currentMode = 'eraser'; // 自動で消しゴムモードに戻す
-            statusText.innerText = "🎨 スライダー調整後、消しゴムで土や影を消してください。";
+            targetColors[indexColor] = { r: pixel[index], g: pixel[index+1], b: pixel[index+2], active: true };
+            document.getElementById(`colorBox${indexColor+1}`).style.backgroundColor = `rgb(${targetColors[indexColor].r},${targetColors[indexColor].g},${targetColors[indexColor].b})`;
+            
+            currentMode = 'eraser'; 
+            statusText.innerText = "🎨 他の色を追加するか、スライダー調整後、消しゴムで補正してください。";
             statusText.style.color = "#01579b";
             setMode('eraser');
             processColor(); 
@@ -343,29 +366,26 @@
             statusText.innerText = "✅ スケール完了。土の赤色は消しゴムで消してください。";
             statusText.style.color = "#01579b";
             setMode('eraser');
-            finalComposite(); // 再描画
+            finalComposite(); 
         }
     }
 
-    // 抽出処理リセット
-    function resetColor() {
+    function resetColorMask() {
         if (!originalImage) return;
-        if (confirm("現在の色抽出と消しゴム補正をリセットしますか？")) {
+        if (confirm("現在の抽出結果とお絵描きをリセットしますか？（スポイトの色は保持されます）")) {
             extractedMaskCtx.clearRect(0, 0, extractedMaskCanvas.width, extractedMaskCanvas.height);
-            processColor(); // スライダー値で再抽出
+            processColor(); 
         }
     }
 
-    // ①色の抽出処理（スライダーを動かすと呼ばれる）
+    // ★ 改良：複数色へのマッチング処理
     function processColor() {
         if (!originalImage || !extractedMaskCtx) return;
         
         const tolerance = parseInt(toleranceSlider.value);
         const data = originalImage.data;
         
-        // マスクキャンバスを初期化（スライダー値に基づいて再生成）
         extractedMaskCtx.clearRect(0, 0, extractedMaskCanvas.width, extractedMaskCanvas.height);
-        // マスク用に一時的な ImageData を作成
         const maskData = new ImageData(canvas.width, canvas.height);
         const md = maskData.data;
 
@@ -374,14 +394,26 @@
             const g = data[i+1];
             const b = data[i+2];
             
-            const distance = Math.sqrt(
-                Math.pow(r - targetColor.r, 2) + 
-                Math.pow(g - targetColor.g, 2) + 
-                Math.pow(b - targetColor.b, 2)
-            );
+            let isMatch = false;
+            
+            // 登録されている最大3色すべてに対して距離を計算
+            for (let c = 0; c < 3; c++) {
+                if (!targetColors[c].active) continue;
+                
+                const distance = Math.sqrt(
+                    Math.pow(r - targetColors[c].r, 2) + 
+                    Math.pow(g - targetColors[c].g, 2) + 
+                    Math.pow(b - targetColors[c].b, 2)
+                );
 
-            if (distance < tolerance) {
-                // 丸太と判定された箇所をマスクに「不透明な赤」で塗る
+                // どれか1色でも許容範囲内に入れば丸太とみなす
+                if (distance < tolerance) {
+                    isMatch = true;
+                    break;
+                }
+            }
+
+            if (isMatch) {
                 md[i] = 255;   // R
                 md[i+1] = 0;   // G
                 md[i+2] = 0;   // B
@@ -389,50 +421,33 @@
             }
         }
         extractedMaskCtx.putImageData(maskData, 0, 0);
-        finalComposite(); // 描画と計算
+        finalComposite(); 
     }
 
-    // ②お絵描き中のリアルタイム表示
     function compositeDuringDrawing() {
         if (!originalImage) return;
-        
-        // 元画像を描画
         ctx.putImageData(originalImage, 0, 0);
-        
-        // マスク（抽出結果＋消しゴムお絵描き）を半透明で重ねる
         ctx.save();
-        ctx.globalAlpha = 0.6; // 抽出部分の透明度
-        ctx.fillStyle = 'red'; // 抽出部分を表示する色
-
-        // マスクキャンバス自体が透明度を管理している
-        // destination-in で元画像とマスクの不透明部分を掛け合わせる
-        // source-over でマスクを半透明の赤として重ねる
-
-        // 今回は単純に、マスクを「半透明の赤色」として重ね書き
+        ctx.globalAlpha = 0.6; 
+        ctx.fillStyle = 'red'; 
         ctx.globalCompositeOperation = 'source-over';
         ctx.drawImage(extractedMaskCanvas, 0, 0);
-        
         ctx.restore();
     }
 
-    // ③描画停止後、最終的な合成とピクセル数計算
     function finalComposite() {
         if (!originalImage || !extractedMaskCtx) return;
 
-        // まずリアルタイム表示と同じ描画を行う
         compositeDuringDrawing();
         
-        // ★重要：実際のピクセル数をカウントする
-        // マスクキャンバスの ImageData を取得して、不透明なピクセルを数える
         const maskData = extractedMaskCtx.getImageData(0, 0, canvas.width, canvas.height).data;
         extractedPixelCount = 0;
         for (let i = 3; i < maskData.length; i += 4) {
-            if (maskData[i] > 128) { // 不透明度が一定以上のピクセルをカウント
+            if (maskData[i] > 128) { 
                 extractedPixelCount++;
             }
         }
         
-        // スケール線が設定されていれば再描画
         if (scalePoints.length === 2) {
             drawPoint(scalePoints[0].x, scalePoints[0].y, '#00ff00');
             drawPoint(scalePoints[1].x, scalePoints[1].y, '#00ff00');
@@ -443,7 +458,6 @@
         calculateVolume();
     }
 
-    // 体積計算
     function calculateVolume() {
         if (pixelsPerMeter === 0 || extractedPixelCount === 0) {
              document.getElementById('resultArea').innerText = "0.000";
@@ -466,7 +480,6 @@
         document.getElementById('resultVolume').innerText = volumeM3.toFixed(3);
     }
 
-    // 描画ヘルパー
     function drawPoint(x, y, color) {
         ctx.beginPath();
         ctx.arc(x, y, 8, 0, 2 * Math.PI);
