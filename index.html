@@ -61,7 +61,7 @@
 <body>
 
 <div class="card">
-    <div class="header"><h2>層積検尺 v1.4<span style="font-size:0.7em; color:#757575;"> (AIハイブリッド版)</span></h2></div>
+    <div class="header"><h2>層積検尺 v1.5<span style="font-size:0.7em; color:#757575;"> (AIハイブリッド版)</span></h2></div>
     
     <label class="btn btn-blue">
         📸 写真を撮る / 選ぶ
@@ -78,7 +78,7 @@
     <div class="control-group ai-group">
         <label style="color: #4a148c;">🤖 オプション: Geminiによる自動赤塗り</label>
         <input type="password" id="geminiApiKey" placeholder="Gemini APIキー (初回のみ)">
-        <button class="btn btn-purple" id="btnRunAI" onclick="runAIPainting()">✨ AIで丸太を自動検出して塗る</button>
+        <button class="btn btn-purple" id="btnRunAI" onclick="runAIPainting()">✨ AIで丸太を自動検出（オンライン限定）</button>
     </div>
 
     <!-- スポイトUI -->
@@ -353,7 +353,7 @@
             statusText.innerText = "📏 測量ポールの【1点目】をタップしてください";
             statusText.style.color = "#e65100";
         } else if (mode === 'eraser' || mode === 'paint') {
-            statusText.innerText = "🎨 白い部分（消しゴム）で不要な赤色をなぞって消します。";
+            statusText.innerText = "🎨 下のツールで赤色を書き足したり、消したり出来ます。";
             statusText.style.color = "#01579b";
         }
     }
