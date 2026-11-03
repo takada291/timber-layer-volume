@@ -62,7 +62,7 @@
 <body>
 
 <div class="card">
-    <div class="header"><h2>層積検尺 v1.6<span style="font-size:0.7em; color:#757575;"> (AIハイブリッド版)</span></h2></div>
+    <div class="header"><h2>層積検尺 v1.7<span style="font-size:0.7em; color:#757575;"> (AIハイブリッド版)</span></h2></div>
     
     <!-- ★ 修正：「capture="environment"」を削除し、カメラとライブラリ両方を選べるように変更 -->
     <label class="btn btn-blue">
@@ -221,7 +221,7 @@
     // ==========================================
     // ★ Gemini AIによる自動赤塗り処理
     // ==========================================
-    const MODEL_CANDIDATES = ["gemini-1.5-flash", "gemini-1.5-pro"];
+    const MODEL_CANDIDATES = ["gemini-3.6-flash", "gemini-2.5-flash"];
 
     async function runAIPainting() {
         if (!originalImage) return alert("先に写真を読み込んでください");
