@@ -12,7 +12,42 @@
     <meta name="apple-mobile-web-app-title" content="層積検尺">
     <link rel="apple-touch-icon" href="icon-192.png">
 
-    <script src="https://cdn.roboflow.com/0.2.26/roboflow.js"></script>
+    <!-- ★ リポジトリ内の roboflow.js を読み込む前に、モデル通信先をローカルへ振り替えるフックを設定 -->
+    <script>
+      (function() {
+        function rewriteModelUrl(url) {
+          if (typeof url !== 'string') return url;
+          if (url.includes('my-first-project-bjosg/40') || url.includes('model.json')) {
+            return './model.json';
+          }
+          const binMatch = url.match(/group1-shard\d+of\d+\.bin/);
+          if (binMatch) {
+            return './' + binMatch[0];
+          }
+          return url;
+        }
+
+        const originalFetch = window.fetch;
+        window.fetch = function(input, init) {
+          if (typeof input === 'string') {
+            input = rewriteModelUrl(input);
+          } else if (input && typeof input.url === 'string') {
+            const newUrl = rewriteModelUrl(input.url);
+            if (newUrl !== input.url) {
+              input = new Request(newUrl, input);
+            }
+          }
+          return originalFetch.call(this, input, init);
+        };
+
+        const originalOpen = XMLHttpRequest.prototype.open;
+        XMLHttpRequest.prototype.open = function(method, url, ...rest) {
+          const newUrl = rewriteModelUrl(url);
+          return originalOpen.call(this, method, newUrl, ...rest);
+        };
+      })();
+    </script>
+    <script src="./roboflow.js"></script>
 
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-WXBP6CPKLP"></script>
     <script>
@@ -73,7 +108,7 @@
 <body>
 
 <div class="card">
-    <div class="header"><h2>層積検尺 v2.0<span style="font-size:0.7em; color:#757575;"> (AIハイブリッド版)</span></h2></div>
+    <div class="header"><h2>層積検尺 v2.1<span style="font-size:0.7em; color:#757575;"> (内蔵AI版)</span></h2></div>
     
     <div class="photo-buttons">
         <label class="btn btn-blue">
@@ -99,10 +134,10 @@
         </div>
     </div>
 
-    <!-- Roboflow による高速自動赤塗りエリア（内部上限1000本） -->
+    <!-- ① 内蔵AIモデル（Roboflow）による高速自動赤塗りエリア（内部上限1000本） -->
     <div class="control-group rf-group">
-        <label style="color: #2e7d32;">🧠 オプションA: Roboflowによる自動赤塗り（オフライン高速）</label>
-        <button class="btn btn-teal" id="btnLoadModel" onclick="loadRoboflowModel()">📥 認識モデル読込（要オンライン環境）</button>
+        <label style="color: #2e7d32;">① 🧠 AIによる自動赤塗り（オフライン高速）</label>
+        <button class="btn btn-teal" id="btnLoadModel" onclick="loadRoboflowModel()">📥 認識モデル読込（事前キャッシュ用）</button>
         <div class="input-row">
             <label style="color: #2e7d32;">🎯 検出感度</label>
             <select id="rfThresholdSelect" style="border-color: #81c784;">
@@ -111,11 +146,11 @@
                 <option value="0.60">厳しめ・確実のみ (60%以上)</option>
             </select>
         </div>
-        <button class="btn btn-green" id="btnRunRF" onclick="runRoboflowPainting()" style="margin-bottom: 0;">⚡ Roboflowで一括赤塗り</button>
+        <button class="btn btn-green" id="btnRunRF" onclick="runRoboflowPainting()" style="margin-bottom: 0;">⚡ AIで一括赤塗り</button>
     </div>
 
-    <!-- Gemini 4 対応 AI自動赤塗りエリア -->
-    <div class="control-group ai-group">
+    <!-- ★ Gemini 4 自動赤塗りエリア（機能は温存し、display: none; で非表示） -->
+    <div class="control-group ai-group" style="display: none;">
         <label style="color: #4a148c;">🤖 オプションB: Geminiによる自動赤塗り（オンライン高精度）</label>
         <input type="password" id="geminiApiKey" placeholder="Gemini APIキー (初回のみ)">
         <div class="input-row">
@@ -129,8 +164,9 @@
         <button class="btn btn-purple" id="btnRunAI" onclick="runAIPainting()" style="margin-bottom: 0;">✨ Geminiで一括赤塗り（オンライン限定）</button>
     </div>
 
-    <div class="control-group">
-        <label>① 抽出する色（スポイト抽出・最大3色）</label>
+    <!-- ★ スポイト色抽出エリア（機能は温存し、display: none; で非表示） -->
+    <div class="control-group" style="display: none;">
+        <label>抽出する色（スポイト抽出・最大3色）</label>
         <div style="display: flex; gap: 5px; margin-bottom: 10px;">
             <div style="flex: 1; text-align: center;">
                 <span id="colorBox1" class="color-preview" style="background: rgb(139, 69, 19);"></span>
@@ -147,12 +183,13 @@
         </div>
         <button class="btn btn-gray" style="background: #e57373; padding: 6px; font-size: 0.8em;" onclick="clearExtraColors()">🗑 色2・色3をリセット</button>
         
-        <label style="margin-top: 10px;">② 色の許容範囲 (スライダーで調整)</label>
+        <label style="margin-top: 10px;">色の許容範囲 (スライダーで調整)</label>
         <input type="range" id="toleranceSlider" min="10" max="150" value="40" oninput="processColor()">
     </div>
 
+    <!-- ② 測量ポール縮尺設定 -->
     <div class="control-group">
-        <label>③ 測量ポールで縮尺を設定（画面上の両端をタップ）</label>
+        <label>② 📏 測量ポールで縮尺を設定（画面上の両端をタップ）</label>
         <button class="btn btn-orange" id="btnSetScale" onclick="setMode('scale')">📏 ポールの両端を2箇所タップする</button>
         <div style="display: flex; gap: 10px; margin-top: 10px;">
             <div style="flex: 1;">
@@ -173,8 +210,9 @@
         </div>
     </div>
 
+    <!-- ③ 消しゴム・書き足し補正 -->
     <div class="control-group" style="background: #e1f5fe; border-color: #81d4fa;">
-        <label>④ 🎨 不要な赤色を消去 / 補正（消しゴム）</label>
+        <label>③ 🎨 不要な赤色を消去 / 補正（消しゴム）</label>
         <div class="toolbar">
             <div class="tool-btn" id="tool-pan" onclick="setMode('pan')">✋ スクロール</div>
             <div class="tool-btn active" id="tool-eraser" onclick="setMode('eraser')">⚪️ 消しゴム</div>
@@ -182,14 +220,14 @@
         </div>
         <label>ブラシの太さ</label>
         <input type="range" id="brushSizeSlider" min="5" max="100" value="30">
-        <button class="btn btn-gray" style="background: #607d8b; padding: 8px; margin-bottom: 0;" onclick="resetColorMask()">🔄 抽出を完全リセット</button>
+        <button class="btn btn-gray" style="background: #607d8b; padding: 8px; margin-bottom: 0;" onclick="resetColorMask()">🔄 赤塗りを完全リセット</button>
     </div>
 
 </div>
 
 <script>
     // ==========================================
-    // ★ API・モデル設定
+    // ★ API・モデル設定（Gemini・スポイト機能も裏側に温存）
     // ==========================================
     const PROJECT_NAME = "my-first-project-bjosg";
     const RF_API_KEY = "rf_sRyNyDbysrbVYyp2FNCslDCxdpN2";
@@ -258,7 +296,7 @@
                 extractedMaskCtx.globalCompositeOperation = 'source-over';
                 extractedMaskCtx.clearRect(0, 0, width, height);
                 
-                statusText.innerText = "2. AI自動赤塗り、またはスポイトで色を抽出してください";
+                statusText.innerText = "2. 「AIで一括赤塗り」を実行してください";
                 statusText.style.color = "#1565c0";
                 
                 extractedPixelCount = 0;
@@ -274,7 +312,6 @@
     imageInputCamera.addEventListener('change', handleImageUpload);
     imageInputFile.addEventListener('change', handleImageUpload);
 
-    // クリーンな元画像のCanvasを取得（緑のスケール線などがAIに混入しないようにする）
     function getCleanImageCanvas() {
         const tempCanvas = document.createElement('canvas');
         tempCanvas.width = canvas.width;
@@ -284,7 +321,7 @@
     }
 
     // ==========================================
-    // ★ オプションA: Roboflow 自動赤塗り（内部上限1000本）
+    // ★ 内蔵AIモデル（Roboflow）自動赤塗り（内部上限1000本）
     // ==========================================
     function applyRoboflowConfig() {
         if (!logModel) return;
@@ -303,23 +340,23 @@
     async function loadRoboflowModel() {
         const btn = document.getElementById('btnLoadModel');
         btn.disabled = true;
-        btn.innerText = "⏳ モデル読込中...";
-        statusText.innerText = "Roboflowモデルをダウンロードしています...";
+        btn.innerText = "⏳ 内蔵モデル読込中...";
+        statusText.innerText = "リポジトリ内の認識モデルを読み込んでいます...";
         
         try {
             const rf = await window.roboflow.auth({ publishable_key: RF_API_KEY });
             logModel = await rf.load({ model: PROJECT_NAME, version: MODEL_VERSION });
             applyRoboflowConfig();
             
-            btn.innerText = "✅ モデル読込完了";
+            btn.innerText = "✅ 認識モデル準備完了";
             btn.style.background = "#388e3c"; 
-            statusText.innerText = "モデルの準備が完了しました。オフラインでも高速赤塗りが可能です。";
+            statusText.innerText = "認識モデルの準備が完了しました。オフラインでも高速赤塗りが可能です。";
             statusText.style.color = "#2e7d32";
         } catch (error) {
             alert("モデル読込失敗: " + error.message);
             statusText.innerText = "モデル読込エラーが発生しました";
             btn.disabled = false;
-            btn.innerText = "📥 認識モデル読込（要オンライン環境）";
+            btn.innerText = "📥 認識モデル読込（事前キャッシュ用）";
         }
     }
 
@@ -328,7 +365,7 @@
         
         btnRunRF.disabled = true;
         btnRunRF.innerText = "⏳ 解析中...";
-        statusText.innerText = "Roboflowで丸太を高速検出しています...";
+        statusText.innerText = "内蔵AIモデルで丸太を高速検出しています...";
         statusText.style.color = "#2e7d32";
 
         try {
@@ -336,7 +373,7 @@
                 const rf = await window.roboflow.auth({ publishable_key: RF_API_KEY });
                 logModel = await rf.load({ model: PROJECT_NAME, version: MODEL_VERSION });
                 const loadBtn = document.getElementById('btnLoadModel');
-                loadBtn.innerText = "✅ モデル読込完了";
+                loadBtn.innerText = "✅ 認識モデル準備完了";
                 loadBtn.style.background = "#388e3c";
                 loadBtn.disabled = true;
             }
@@ -346,7 +383,6 @@
             const cleanCanvas = getCleanImageCanvas();
             const predictions = await logModel.detect(cleanCanvas);
 
-            // ★重要修正：消しゴムの「destination-out」を解除して確実に赤塗りする
             extractedMaskCtx.globalCompositeOperation = 'source-over';
             extractedMaskCtx.clearRect(0, 0, extractedMaskCanvas.width, extractedMaskCanvas.height);
             extractedMaskCtx.fillStyle = 'rgba(255, 0, 0, 1)';
@@ -366,22 +402,22 @@
             setMode('eraser');
             finalComposite();
 
-            statusText.innerText = `✅ Roboflowが ${predictions.length} 本の丸太を赤塗りしました！消しゴムで補正してください。`;
+            statusText.innerText = `✅ AIが ${predictions.length} 本の丸太を赤塗りしました！ポール設定や消しゴム補正を行ってください。`;
             statusText.style.color = "#2e7d32";
 
         } catch (error) {
             console.error(error);
-            alert("Roboflow解析エラー: " + error.message);
+            alert("AI解析エラー: " + error.message);
             statusText.innerText = "エラーが発生しました: " + error.message;
             statusText.style.color = "#d32f2f";
         } finally {
             btnRunRF.disabled = false;
-            btnRunRF.innerText = "⚡ Roboflowで一括赤塗り";
+            btnRunRF.innerText = "⚡ AIで一括赤塗り";
         }
     }
 
     // ==========================================
-    // ★ オプションB: Gemini 4 (Hydrogen) 自動赤塗り
+    // ★ Gemini 4 自動赤塗り（非表示だが温存）
     // ==========================================
     async function fetchWithTimeout(url, options, timeoutMs = 120000) {
         const controller = new AbortController();
@@ -483,7 +519,6 @@
                 throw new Error("AIから正しい座標データが返ってきませんでした。");
             }
 
-            // ★重要修正：消しゴムの「destination-out」を解除して確実に赤塗りする
             extractedMaskCtx.globalCompositeOperation = 'source-over';
             extractedMaskCtx.clearRect(0, 0, extractedMaskCanvas.width, extractedMaskCanvas.height);
             extractedMaskCtx.fillStyle = 'rgba(255, 0, 0, 1)';
@@ -505,7 +540,6 @@
 
                 if ([ymin, xmin, ymax, xmax].some(v => isNaN(v))) return;
 
-                // AIが0〜1000スケールで返した場合の自動正規化
                 if (ymax > 1.5 || xmax > 1.5) {
                     ymin /= 1000; xmin /= 1000; ymax /= 1000; xmax /= 1000;
                 }
@@ -711,11 +745,11 @@
 
     function resetColorMask() {
         if (!originalImage) return;
-        if (confirm("現在の抽出結果とお絵描きを完全にリセットしますか？")) {
+        if (confirm("現在の赤塗り結果とお絵描きを完全にリセットしますか？")) {
             extractedMaskCtx.globalCompositeOperation = 'source-over';
             extractedMaskCtx.clearRect(0, 0, extractedMaskCanvas.width, extractedMaskCanvas.height);
             finalComposite(); 
-            statusText.innerText = "リセットしました。再度AIを利用するかスポイトで色を抽出してください。";
+            statusText.innerText = "リセットしました。再度「AIで一括赤塗り」を実行してください。";
         }
     }
 
