@@ -12,6 +12,8 @@
     <meta name="apple-mobile-web-app-title" content="層積検尺">
     <link rel="apple-touch-icon" href="icon-192.png">
 
+    <script src="https://cdn.roboflow.com/0.2.26/roboflow.js"></script>
+
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-WXBP6CPKLP"></script>
     <script>
       window.dataLayer = window.dataLayer || [];
@@ -32,6 +34,7 @@
         .btn-orange { background: #e65100; }
         .btn-gray { background: #757575; }
         .btn-purple { background: #673ab7; }
+        .btn-teal { background: #00897b; }
         .btn:disabled { background: #bdbdbd !important; cursor: not-allowed; }
 
         #canvas-container { position: relative; width: 100%; max-height: 60vh; overflow: hidden; border: 1px solid #ccc; background: #000; border-radius: 8px; margin-bottom: 10px; text-align: center; }
@@ -39,14 +42,15 @@
         
         .control-group { margin-bottom: 15px; background: #fff3e0; padding: 10px; border-radius: 8px; border: 1px solid #ffcc80; }
         .control-group.ai-group { background: #f3e5f5; border-color: #ce93d8; }
+        .control-group.rf-group { background: #e8f5e9; border-color: #81c784; }
         
         label { font-weight: bold; font-size: 0.9em; display: block; margin-bottom: 5px; color: #5d4037;}
         input[type="range"] { width: 100%; margin: 10px 0; cursor: pointer;}
         input[type="number"], input[type="password"], select { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 1rem; box-sizing: border-box; margin-bottom: 8px; background: white;}
         
         .input-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
-        .input-row label { margin-bottom: 0; width: 35%; color: #4a148c; }
-        .input-row select { width: 63%; margin-bottom: 0; border-color: #ce93d8; }
+        .input-row label { margin-bottom: 0; width: 35%; }
+        .input-row select { width: 63%; margin-bottom: 0; }
 
         .result-box { background: #e8f5e9; border: 2px solid #4caf50; padding: 15px; border-radius: 8px; text-align: center; font-size: 1.2em; font-weight: bold; color: #1b5e20; margin-bottom: 15px; }
         #status-text { color: #d32f2f; font-weight: bold; font-size: 0.9em; margin-bottom: 10px; text-align: center; }
@@ -69,7 +73,7 @@
 <body>
 
 <div class="card">
-    <div class="header"><h2>層積検尺 v1.9<span style="font-size:0.7em; color:#757575;"> (Gemini 4対応版)</span></h2></div>
+    <div class="header"><h2>層積検尺 v2.0<span style="font-size:0.7em; color:#757575;"> (AIハイブリッド版)</span></h2></div>
     
     <div class="photo-buttons">
         <label class="btn btn-blue">
@@ -95,23 +99,38 @@
         </div>
     </div>
 
+    <!-- Roboflow による高速自動赤塗りエリア（内部上限1000本） -->
+    <div class="control-group rf-group">
+        <label style="color: #2e7d32;">🧠 オプションA: Roboflowによる自動赤塗り（オフライン高速）</label>
+        <button class="btn btn-teal" id="btnLoadModel" onclick="loadRoboflowModel()">📥 認識モデル読込（要オンライン環境）</button>
+        <div class="input-row">
+            <label style="color: #2e7d32;">🎯 検出感度</label>
+            <select id="rfThresholdSelect" style="border-color: #81c784;">
+                <option value="0.25">甘め・多めに検出 (25%以上)</option>
+                <option value="0.40" selected>標準バランス (40%以上)</option>
+                <option value="0.60">厳しめ・確実のみ (60%以上)</option>
+            </select>
+        </div>
+        <button class="btn btn-green" id="btnRunRF" onclick="runRoboflowPainting()" style="margin-bottom: 0;">⚡ Roboflowで一括赤塗り</button>
+    </div>
+
     <!-- Gemini 4 対応 AI自動赤塗りエリア -->
     <div class="control-group ai-group">
-        <label style="color: #4a148c;">🤖 オプション: Geminiによる自動赤塗り</label>
+        <label style="color: #4a148c;">🤖 オプションB: Geminiによる自動赤塗り（オンライン高精度）</label>
         <input type="password" id="geminiApiKey" placeholder="Gemini APIキー (初回のみ)">
         <div class="input-row">
-            <label>🧠 思考レベル</label>
-            <select id="thinkingLevelSelect">
+            <label style="color: #4a148c;">🧠 思考レベル</label>
+            <select id="thinkingLevelSelect" style="border-color: #ce93d8;">
                 <option value="LOW" selected>Low (高速・推奨)</option>
                 <option value="MEDIUM">Medium (標準バランス)</option>
                 <option value="HIGH">High (高精度・じっくり)</option>
             </select>
         </div>
-        <button class="btn btn-purple" id="btnRunAI" onclick="runAIPainting()" style="margin-bottom: 0;">✨ AIで丸太を自動検出（オンライン限定）</button>
+        <button class="btn btn-purple" id="btnRunAI" onclick="runAIPainting()" style="margin-bottom: 0;">✨ Geminiで一括赤塗り（オンライン限定）</button>
     </div>
 
     <div class="control-group">
-        <label>① 抽出する色（最大3色まで追加可能）</label>
+        <label>① 抽出する色（スポイト抽出・最大3色）</label>
         <div style="display: flex; gap: 5px; margin-bottom: 10px;">
             <div style="flex: 1; text-align: center;">
                 <span id="colorBox1" class="color-preview" style="background: rgb(139, 69, 19);"></span>
@@ -169,11 +188,19 @@
 </div>
 
 <script>
+    // ==========================================
+    // ★ API・モデル設定
+    // ==========================================
+    const PROJECT_NAME = "my-first-project-bjosg";
+    const RF_API_KEY = "rf_sRyNyDbysrbVYyp2FNCslDCxdpN2";
+    const MODEL_VERSION = 40;
+    const MODEL_CANDIDATES = ["gemini-4-hydrogen", "gemini-3.8-flash", "gemini-2.5-flash"];
+
     window.addEventListener('load', () => {
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('./sw.js').catch(err => console.log('SW failed!', err));
         }
-        const savedKey = localStorage.getItem('gemini_api_key_vol');
+        const savedKey = localStorage.getItem('gemini_api_key_vol') || localStorage.getItem('gemini_api_key_ai');
         if (savedKey) document.getElementById('geminiApiKey').value = savedKey;
     });
 
@@ -185,8 +212,10 @@
     const toleranceSlider = document.getElementById('toleranceSlider');
     const brushSizeSlider = document.getElementById('brushSizeSlider');
     const btnRunAI = document.getElementById('btnRunAI');
+    const btnRunRF = document.getElementById('btnRunRF');
     
     let originalImage = null;
+    let logModel = null;
     let targetColors = [
         { r: 139, g: 69, b: 19, active: true },
         { r: 0, g: 0, b: 0, active: false },
@@ -226,9 +255,10 @@
                 extractedMaskCanvas.width = width;
                 extractedMaskCanvas.height = height;
                 extractedMaskCtx = extractedMaskCanvas.getContext('2d', { willReadFrequently: true });
+                extractedMaskCtx.globalCompositeOperation = 'source-over';
                 extractedMaskCtx.clearRect(0, 0, width, height);
                 
-                statusText.innerText = "2. AI自動検知、またはスポイトで色を抽出してください";
+                statusText.innerText = "2. AI自動赤塗り、またはスポイトで色を抽出してください";
                 statusText.style.color = "#1565c0";
                 
                 extractedPixelCount = 0;
@@ -244,11 +274,115 @@
     imageInputCamera.addEventListener('change', handleImageUpload);
     imageInputFile.addEventListener('change', handleImageUpload);
 
-    // ==========================================
-    // ★ Gemini 4 (Hydrogen) 優先・フォールバック通信基盤
-    // ==========================================
-    const MODEL_CANDIDATES = ["gemini-4-hydrogen", "gemini-3.8-flash", "gemini-2.5-flash"];
+    // クリーンな元画像のCanvasを取得（緑のスケール線などがAIに混入しないようにする）
+    function getCleanImageCanvas() {
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = canvas.width;
+        tempCanvas.height = canvas.height;
+        tempCanvas.getContext('2d').putImageData(originalImage, 0, 0);
+        return tempCanvas;
+    }
 
+    // ==========================================
+    // ★ オプションA: Roboflow 自動赤塗り（内部上限1000本）
+    // ==========================================
+    function applyRoboflowConfig() {
+        if (!logModel) return;
+        const selectedThreshold = parseFloat(document.getElementById('rfThresholdSelect')?.value) || 0.40;
+        try {
+            logModel.configure({
+                threshold: selectedThreshold,
+                overlap: 0.50,
+                max_objects: 1000
+            });
+        } catch (e) {
+            console.log("Roboflow configure warning:", e);
+        }
+    }
+
+    async function loadRoboflowModel() {
+        const btn = document.getElementById('btnLoadModel');
+        btn.disabled = true;
+        btn.innerText = "⏳ モデル読込中...";
+        statusText.innerText = "Roboflowモデルをダウンロードしています...";
+        
+        try {
+            const rf = await window.roboflow.auth({ publishable_key: RF_API_KEY });
+            logModel = await rf.load({ model: PROJECT_NAME, version: MODEL_VERSION });
+            applyRoboflowConfig();
+            
+            btn.innerText = "✅ モデル読込完了";
+            btn.style.background = "#388e3c"; 
+            statusText.innerText = "モデルの準備が完了しました。オフラインでも高速赤塗りが可能です。";
+            statusText.style.color = "#2e7d32";
+        } catch (error) {
+            alert("モデル読込失敗: " + error.message);
+            statusText.innerText = "モデル読込エラーが発生しました";
+            btn.disabled = false;
+            btn.innerText = "📥 認識モデル読込（要オンライン環境）";
+        }
+    }
+
+    async function runRoboflowPainting() {
+        if (!originalImage) return alert("先に写真を読み込んでください");
+        
+        btnRunRF.disabled = true;
+        btnRunRF.innerText = "⏳ 解析中...";
+        statusText.innerText = "Roboflowで丸太を高速検出しています...";
+        statusText.style.color = "#2e7d32";
+
+        try {
+            if (!logModel) {
+                const rf = await window.roboflow.auth({ publishable_key: RF_API_KEY });
+                logModel = await rf.load({ model: PROJECT_NAME, version: MODEL_VERSION });
+                const loadBtn = document.getElementById('btnLoadModel');
+                loadBtn.innerText = "✅ モデル読込完了";
+                loadBtn.style.background = "#388e3c";
+                loadBtn.disabled = true;
+            }
+
+            applyRoboflowConfig();
+
+            const cleanCanvas = getCleanImageCanvas();
+            const predictions = await logModel.detect(cleanCanvas);
+
+            // ★重要修正：消しゴムの「destination-out」を解除して確実に赤塗りする
+            extractedMaskCtx.globalCompositeOperation = 'source-over';
+            extractedMaskCtx.clearRect(0, 0, extractedMaskCanvas.width, extractedMaskCanvas.height);
+            extractedMaskCtx.fillStyle = 'rgba(255, 0, 0, 1)';
+
+            predictions.forEach(p => {
+                const cx = p.bbox.x;
+                const cy = p.bbox.y;
+                const radiusX = p.bbox.width / 2;
+                const radiusY = p.bbox.height / 2;
+                if (radiusX > 0 && radiusY > 0) {
+                    extractedMaskCtx.beginPath();
+                    extractedMaskCtx.ellipse(cx, cy, radiusX, radiusY, 0, 0, 2 * Math.PI);
+                    extractedMaskCtx.fill();
+                }
+            });
+
+            setMode('eraser');
+            finalComposite();
+
+            statusText.innerText = `✅ Roboflowが ${predictions.length} 本の丸太を赤塗りしました！消しゴムで補正してください。`;
+            statusText.style.color = "#2e7d32";
+
+        } catch (error) {
+            console.error(error);
+            alert("Roboflow解析エラー: " + error.message);
+            statusText.innerText = "エラーが発生しました: " + error.message;
+            statusText.style.color = "#d32f2f";
+        } finally {
+            btnRunRF.disabled = false;
+            btnRunRF.innerText = "⚡ Roboflowで一括赤塗り";
+        }
+    }
+
+    // ==========================================
+    // ★ オプションB: Gemini 4 (Hydrogen) 自動赤塗り
+    // ==========================================
     async function fetchWithTimeout(url, options, timeoutMs = 120000) {
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -314,16 +448,12 @@
         localStorage.setItem('gemini_api_key_vol', apiKey);
         
         btnRunAI.disabled = true;
-        btnRunAI.innerText = "⏳ AIが丸太を検出中...";
+        btnRunAI.innerText = "⏳ Geminiが丸太を検出中...";
         statusText.style.color = "#673ab7";
 
         try {
-            // スケール緑線などが混ざらないよう、元のクリーンな画像からBase64を生成
-            const tempCanvas = document.createElement('canvas');
-            tempCanvas.width = canvas.width;
-            tempCanvas.height = canvas.height;
-            tempCanvas.getContext('2d').putImageData(originalImage, 0, 0);
-            const base64Image = tempCanvas.toDataURL("image/jpeg", 0.8).split(',')[1];
+            const cleanCanvas = getCleanImageCanvas();
+            const base64Image = cleanCanvas.toDataURL("image/jpeg", 0.8).split(',')[1];
 
             const promptText = `
                 添付された画像内の「すべての丸太の断面（木口）」を検出し、それぞれのバウンディングボックス（囲み枠）を以下のJSON形式で出力してください。
@@ -349,36 +479,59 @@
             const cleanText = res.text.replace(/```json/g, '').replace(/```/g, '').trim();
             const jsonResponse = JSON.parse(cleanText);
 
-            if (!jsonResponse || !jsonResponse.logs) {
+            if (!jsonResponse || !Array.isArray(jsonResponse.logs)) {
                 throw new Error("AIから正しい座標データが返ってきませんでした。");
             }
 
+            // ★重要修正：消しゴムの「destination-out」を解除して確実に赤塗りする
+            extractedMaskCtx.globalCompositeOperation = 'source-over';
             extractedMaskCtx.clearRect(0, 0, extractedMaskCanvas.width, extractedMaskCanvas.height);
             extractedMaskCtx.fillStyle = 'rgba(255, 0, 0, 1)';
             
             const w = canvas.width;
             const h = canvas.height;
+            let paintedCount = 0;
 
             jsonResponse.logs.forEach(log => {
-                const y = log.ymin * h;
-                const x = log.xmin * w;
-                const boxH = (log.ymax - log.ymin) * h;
-                const boxW = (log.xmax - log.xmin) * w;
+                let ymin, xmin, ymax, xmax;
+                if (Array.isArray(log) && log.length >= 4) {
+                    [ymin, xmin, ymax, xmax] = log.map(Number);
+                } else if (log && typeof log === 'object') {
+                    ymin = Number(log.ymin ?? log.y_min ?? (Array.isArray(log.box_2d) ? log.box_2d[0] : NaN));
+                    xmin = Number(log.xmin ?? log.x_min ?? (Array.isArray(log.box_2d) ? log.box_2d[1] : NaN));
+                    ymax = Number(log.ymax ?? log.y_max ?? (Array.isArray(log.box_2d) ? log.box_2d[2] : NaN));
+                    xmax = Number(log.xmax ?? log.x_max ?? (Array.isArray(log.box_2d) ? log.box_2d[3] : NaN));
+                }
+
+                if ([ymin, xmin, ymax, xmax].some(v => isNaN(v))) return;
+
+                // AIが0〜1000スケールで返した場合の自動正規化
+                if (ymax > 1.5 || xmax > 1.5) {
+                    ymin /= 1000; xmin /= 1000; ymax /= 1000; xmax /= 1000;
+                }
+
+                const y = ymin * h;
+                const x = xmin * w;
+                const boxH = Math.abs(ymax - ymin) * h;
+                const boxW = Math.abs(xmax - xmin) * w;
                 
                 const cx = x + boxW / 2;
                 const cy = y + boxH / 2;
                 const radiusX = boxW / 2;
                 const radiusY = boxH / 2;
                 
-                extractedMaskCtx.beginPath();
-                extractedMaskCtx.ellipse(cx, cy, radiusX, radiusY, 0, 0, 2 * Math.PI);
-                extractedMaskCtx.fill();
+                if (radiusX > 0.5 && radiusY > 0.5) {
+                    extractedMaskCtx.beginPath();
+                    extractedMaskCtx.ellipse(cx, cy, radiusX, radiusY, 0, 0, 2 * Math.PI);
+                    extractedMaskCtx.fill();
+                    paintedCount++;
+                }
             });
 
             setMode('eraser');
             finalComposite();
             
-            statusText.innerText = `✅ ${res.usedModel} が ${jsonResponse.logs.length} 本を赤塗りしました！消しゴムで補正してください。`;
+            statusText.innerText = `✅ ${res.usedModel} が ${paintedCount} 本を赤塗りしました！消しゴムで補正してください。`;
             statusText.style.color = "#2e7d32";
 
         } catch (error) {
@@ -388,7 +541,7 @@
             statusText.style.color = "#d32f2f";
         } finally {
             btnRunAI.disabled = false;
-            btnRunAI.innerText = "✨ AIで丸太を自動検出（オンライン限定）";
+            btnRunAI.innerText = "✨ Geminiで一括赤塗り（オンライン限定）";
         }
     }
 
@@ -559,6 +712,7 @@
     function resetColorMask() {
         if (!originalImage) return;
         if (confirm("現在の抽出結果とお絵描きを完全にリセットしますか？")) {
+            extractedMaskCtx.globalCompositeOperation = 'source-over';
             extractedMaskCtx.clearRect(0, 0, extractedMaskCanvas.width, extractedMaskCanvas.height);
             finalComposite(); 
             statusText.innerText = "リセットしました。再度AIを利用するかスポイトで色を抽出してください。";
@@ -571,6 +725,7 @@
         const tolerance = parseInt(toleranceSlider.value);
         const data = originalImage.data;
         
+        extractedMaskCtx.globalCompositeOperation = 'source-over';
         extractedMaskCtx.clearRect(0, 0, extractedMaskCanvas.width, extractedMaskCanvas.height);
         const maskData = new ImageData(canvas.width, canvas.height);
         const md = maskData.data;
