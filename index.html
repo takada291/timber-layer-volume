@@ -32,6 +32,7 @@
         .btn-orange { background: #e65100; }
         .btn-gray { background: #757575; }
         .btn-purple { background: #673ab7; }
+        .btn:disabled { background: #bdbdbd !important; cursor: not-allowed; }
 
         #canvas-container { position: relative; width: 100%; max-height: 60vh; overflow: hidden; border: 1px solid #ccc; background: #000; border-radius: 8px; margin-bottom: 10px; text-align: center; }
         canvas { max-width: 100%; height: auto; display: block; margin: 0 auto; touch-action: none; cursor: crosshair;}
@@ -41,8 +42,12 @@
         
         label { font-weight: bold; font-size: 0.9em; display: block; margin-bottom: 5px; color: #5d4037;}
         input[type="range"] { width: 100%; margin: 10px 0; cursor: pointer;}
-        input[type="number"], input[type="password"] { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 1rem; box-sizing: border-box; margin-bottom: 5px;}
+        input[type="number"], input[type="password"], select { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 1rem; box-sizing: border-box; margin-bottom: 8px; background: white;}
         
+        .input-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+        .input-row label { margin-bottom: 0; width: 35%; color: #4a148c; }
+        .input-row select { width: 63%; margin-bottom: 0; border-color: #ce93d8; }
+
         .result-box { background: #e8f5e9; border: 2px solid #4caf50; padding: 15px; border-radius: 8px; text-align: center; font-size: 1.2em; font-weight: bold; color: #1b5e20; margin-bottom: 15px; }
         #status-text { color: #d32f2f; font-weight: bold; font-size: 0.9em; margin-bottom: 10px; text-align: center; }
         
@@ -57,7 +62,6 @@
         .tool-btn { flex: 1; padding: 10px; border: 2px solid #ccc; border-radius: 6px; background: #eee; text-align: center; font-weight: bold; cursor: pointer;}
         .tool-btn.active { background: #ffcc80; border-color: #e65100; color: #e65100; }
         
-        /* 撮影・選択ボタンを横並びにするスタイル */
         .photo-buttons { display: flex; gap: 10px; margin-bottom: 10px; }
         .photo-buttons label { flex: 1; margin-bottom: 0; }
     </style>
@@ -65,9 +69,8 @@
 <body>
 
 <div class="card">
-    <div class="header"><h2>層積検尺 v1.8<span style="font-size:0.7em; color:#757575;"> (AIハイブリッド版)</span></h2></div>
+    <div class="header"><h2>層積検尺 v1.9<span style="font-size:0.7em; color:#757575;"> (Gemini 4対応版)</span></h2></div>
     
-    <!-- ★ 修正：カメラ起動とファイル選択のボタンを分離 -->
     <div class="photo-buttons">
         <label class="btn btn-blue">
             📸 写真を撮る
@@ -92,10 +95,19 @@
         </div>
     </div>
 
+    <!-- Gemini 4 対応 AI自動赤塗りエリア -->
     <div class="control-group ai-group">
         <label style="color: #4a148c;">🤖 オプション: Geminiによる自動赤塗り</label>
         <input type="password" id="geminiApiKey" placeholder="Gemini APIキー (初回のみ)">
-        <button class="btn btn-purple" id="btnRunAI" onclick="runAIPainting()">✨ AIで丸太を自動検出（オンライン限定）</button>
+        <div class="input-row">
+            <label>🧠 思考レベル</label>
+            <select id="thinkingLevelSelect">
+                <option value="LOW" selected>Low (高速・推奨)</option>
+                <option value="MEDIUM">Medium (標準バランス)</option>
+                <option value="HIGH">High (高精度・じっくり)</option>
+            </select>
+        </div>
+        <button class="btn btn-purple" id="btnRunAI" onclick="runAIPainting()" style="margin-bottom: 0;">✨ AIで丸太を自動検出（オンライン限定）</button>
     </div>
 
     <div class="control-group">
@@ -189,7 +201,6 @@
     let extractedMaskCanvas = null; 
     let extractedMaskCtx = null;
 
-    // ★ 修正：2つのファイル入力を同じ関数で処理
     function handleImageUpload(e) {
         const file = e.target.files[0];
         if (!file) return;
@@ -220,21 +231,80 @@
                 statusText.innerText = "2. AI自動検知、またはスポイトで色を抽出してください";
                 statusText.style.color = "#1565c0";
                 
-                // 画像読み込み時に材積やピクセル数をリセット
                 extractedPixelCount = 0;
                 scalePoints = [];
                 calculateVolume();
-                
             }
             img.src = event.target.result;
         }
         reader.readAsDataURL(file);
+        e.target.value = '';
     }
     
     imageInputCamera.addEventListener('change', handleImageUpload);
     imageInputFile.addEventListener('change', handleImageUpload);
 
-    const MODEL_CANDIDATES = ["gemini-3.8-flash", "gemini-3.6-flash"];
+    // ==========================================
+    // ★ Gemini 4 (Hydrogen) 優先・フォールバック通信基盤
+    // ==========================================
+    const MODEL_CANDIDATES = ["gemini-4-hydrogen", "gemini-3.8-flash", "gemini-2.5-flash"];
+
+    async function fetchWithTimeout(url, options, timeoutMs = 120000) {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), timeoutMs);
+        try {
+            return await fetch(url, { ...options, signal: controller.signal });
+        } finally {
+            clearTimeout(timer);
+        }
+    }
+
+    async function callGeminiWithFallback(apiKey, basePayload, onStatusUpdate) {
+        let lastErrorMsg = "";
+        const selectedThinkingLevel = document.getElementById('thinkingLevelSelect')?.value || "LOW";
+
+        for (const modelName of MODEL_CANDIDATES) {
+            if (onStatusUpdate) onStatusUpdate(`${modelName} (${selectedThinkingLevel})`);
+            const supportsThinking = modelName.startsWith("gemini-4") || modelName.startsWith("gemini-3");
+            const payloadWithThinking = JSON.parse(JSON.stringify(basePayload));
+            if (supportsThinking) {
+                payloadWithThinking.generationConfig = {
+                    ...(payloadWithThinking.generationConfig || {}),
+                    thinkingConfig: { thinkingLevel: selectedThinkingLevel }
+                };
+            }
+            try {
+                let response = await fetchWithTimeout(
+                    `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`,
+                    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payloadWithThinking) },
+                    120000
+                );
+                let data = await response.json();
+                if (data.error && response.status === 400 && supportsThinking) {
+                    response = await fetchWithTimeout(
+                        `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`,
+                        { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(basePayload) },
+                        120000
+                    );
+                    data = await response.json();
+                }
+                if (data.error) {
+                    lastErrorMsg = `[${modelName}] ${data.error.message}`;
+                    continue;
+                }
+                if (data.candidates && data.candidates[0] && data.candidates[0].content) {
+                    const parts = data.candidates[0].content.parts || [];
+                    const answerPart = parts.find(p => typeof p.text === 'string' && !p.thought) || parts.find(p => typeof p.text === 'string');
+                    if (answerPart) {
+                        return { text: answerPart.text, usedModel: `${modelName} [思考:${selectedThinkingLevel}]` };
+                    }
+                }
+            } catch (err) {
+                lastErrorMsg = `[${modelName}] ${err.name === 'AbortError' ? 'タイムアウト(120秒超過)' : err.message}`;
+            }
+        }
+        throw new Error(lastErrorMsg || "AIモデルでの通信に失敗しました。APIキーをご確認ください。");
+    }
 
     async function runAIPainting() {
         if (!originalImage) return alert("先に写真を読み込んでください");
@@ -245,11 +315,15 @@
         
         btnRunAI.disabled = true;
         btnRunAI.innerText = "⏳ AIが丸太を検出中...";
-        statusText.innerText = "Geminiに画像を送信し、丸太の座標を計算しています...";
         statusText.style.color = "#673ab7";
 
         try {
-            const base64Image = canvas.toDataURL("image/jpeg", 0.8).split(',')[1];
+            // スケール緑線などが混ざらないよう、元のクリーンな画像からBase64を生成
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = canvas.width;
+            tempCanvas.height = canvas.height;
+            tempCanvas.getContext('2d').putImageData(originalImage, 0, 0);
+            const base64Image = tempCanvas.toDataURL("image/jpeg", 0.8).split(',')[1];
 
             const promptText = `
                 添付された画像内の「すべての丸太の断面（木口）」を検出し、それぞれのバウンディングボックス（囲み枠）を以下のJSON形式で出力してください。
@@ -268,38 +342,15 @@
                 generationConfig: { response_mime_type: "application/json" }
             };
 
-            let jsonResponse = null;
-            let lastError = "";
+            const res = await callGeminiWithFallback(apiKey, payload, (modelStatus) => {
+                statusText.innerText = `🤖 ${modelStatus} で丸太の座標を計算中...`;
+            });
 
-            for (const modelName of MODEL_CANDIDATES) {
-                try {
-                    const controller = new AbortController();
-                    const timer = setTimeout(() => controller.abort(), 60000); 
-                    
-                    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payload),
-                        signal: controller.signal
-                    });
-                    clearTimeout(timer);
-
-                    const data = await response.json();
-                    if (data.error) { lastError = data.error.message; continue; }
-                    
-                    if (data.candidates && data.candidates[0].content) {
-                        let text = data.candidates[0].content.parts[0].text;
-                        text = text.replace(/```json/g, '').replace(/```/g, '').trim();
-                        jsonResponse = JSON.parse(text);
-                        break; 
-                    }
-                } catch (err) {
-                    lastError = err.message;
-                }
-            }
+            const cleanText = res.text.replace(/```json/g, '').replace(/```/g, '').trim();
+            const jsonResponse = JSON.parse(cleanText);
 
             if (!jsonResponse || !jsonResponse.logs) {
-                throw new Error("AIから正しいデータが返ってきませんでした。エラー: " + lastError);
+                throw new Error("AIから正しい座標データが返ってきませんでした。");
             }
 
             extractedMaskCtx.clearRect(0, 0, extractedMaskCanvas.width, extractedMaskCanvas.height);
@@ -327,13 +378,13 @@
             setMode('eraser');
             finalComposite();
             
-            statusText.innerText = `✅ AIが ${jsonResponse.logs.length} 本の丸太を赤塗りしました！消しゴムで補正してください。`;
+            statusText.innerText = `✅ ${res.usedModel} が ${jsonResponse.logs.length} 本を赤塗りしました！消しゴムで補正してください。`;
             statusText.style.color = "#2e7d32";
 
         } catch (error) {
             console.error(error);
             alert('AI通信エラー: ' + error.message);
-            statusText.innerText = "エラーが発生しました";
+            statusText.innerText = "エラーが発生しました: " + error.message;
             statusText.style.color = "#d32f2f";
         } finally {
             btnRunAI.disabled = false;
@@ -341,6 +392,9 @@
         }
     }
 
+    // ==========================================
+    // 既存UIとキャンバス操作ロジック
+    // ==========================================
     function setMode(mode) {
         if (!originalImage) return alert("先に写真を読み込んでください");
         currentMode = mode;
