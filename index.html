@@ -95,11 +95,11 @@
         .photo-buttons { display: flex; gap: 10px; margin-bottom: 10px; }
         .photo-buttons label { flex: 1; margin-bottom: 0; }
 
-        /* ★ 十字マーカー確定バー */
+        /* 十字マーカー確定バー */
         #crosshair-action-bar { display: none; background: #fff3e0; border: 2px solid #ffb74d; border-radius: 8px; padding: 10px; margin-bottom: 12px; }
         .action-bar-btns { display: flex; gap: 8px; }
 
-        /* ★ ポップアップモーダル用スタイル */
+        /* ポップアップモーダル用スタイル */
         .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.55); z-index: 99; overflow-y: auto; }
         .modal-content { background: white; margin: 8% auto; padding: 18px; width: 90%; max-width: 400px; border-radius: 12px; text-align: center; box-shadow: 0 4px 15px rgba(0,0,0,0.2); box-sizing: border-box; }
         .modal-section { background: #fff8e1; border: 1px solid #ffe082; border-radius: 8px; padding: 12px; margin-bottom: 12px; text-align: left; }
@@ -112,7 +112,7 @@
 
 <div class="card">
     <div class="header">
-        <h2>層積検尺 v2.2<span style="font-size:0.7em; color:#757575;"></span></h2>
+        <h2>層積検尺 v2.3<span style="font-size:0.7em; color:#757575;"></span></h2>
     </div>
     
     <div class="photo-buttons">
@@ -132,7 +132,7 @@
         <canvas id="mainCanvas"></canvas>
     </div>
 
-    <!-- ★ 十字マーカー調整・確定バー（AI赤塗り後に出現） -->
+    <!-- 十字マーカー調整・確定バー（AI赤塗り後に出現） -->
     <div id="crosshair-action-bar">
         <div style="font-size: 0.85em; font-weight: bold; color: #e65100; margin-bottom: 8px; text-align: center;">
             👆 画面上の2つの「＋」を指でポールの両端へ移動してください
@@ -166,7 +166,7 @@
     </div>
 </div>
 
-<!-- ★ AI赤塗り完了後に自動表示される「ポール実寸・丸太奥行・断面補正」設定モーダル -->
+<!-- AI赤塗り完了後に自動表示される「ポール実寸・丸太奥行・断面補正」設定モーダル -->
 <div id="scaleSettingsModal" class="modal">
     <div class="modal-content">
         <h3 style="margin-top:0; margin-bottom:12px; color:#e65100;">📏 寸法・断面補正の設定</h3>
@@ -214,6 +214,19 @@
     </div>
 </div>
 
+<!-- ★ 新設：保存プレビューモーダル（日時・位置情報・断面積・概算材積を左下に合成） -->
+<div id="savePreviewModal" class="modal">
+    <div class="modal-content" style="margin: 5% auto;">
+        <h3 style="margin-top:0; color:#1565c0;">📸 保存プレビュー</h3>
+        <p style="font-size:0.8em; color:#666;">撮影日時・GPS・断面積・概算材積付き</p>
+        <img id="previewImg" style="width:100%; border-radius:8px; border:2px solid #ccc; margin-bottom:10px;">
+        <div style="display:flex; gap:10px; margin-top:10px;">
+            <button class="btn btn-gray" style="flex:1; padding:10px; margin-bottom:0;" onclick="closeSaveModal()">閉じる</button>
+            <button class="btn btn-orange" style="flex:1; padding:10px; margin-bottom:0;" onclick="downloadImage()">💾 共有 / 保存</button>
+        </div>
+    </div>
+</div>
+
 <script>
     // ==========================================
     // API・モデル設定
@@ -244,12 +257,15 @@
     let extractedMaskCtx = null;
     let extractedPixelCount = 0;
 
-    // ★ 2つの十字マーカー座標とドラッグ制御用変数
-    let crosshairs = []; // [{x, y}, {x, y}]
+    // 2つの十字マーカー座標と計算結果保持用変数
+    let crosshairs = [];
     let showCrosshairs = false;
     let isScaleConfirmed = false;
     let draggingIndex = -1;
     let pixelsPerMeter = 0;
+    let currentAreaM2 = 0;
+    let currentVolumeM3 = 0;
+    let previewDataUrl = null;
 
     // ==========================================
     // クイックボタン＆前回設定の記憶処理
@@ -445,7 +461,7 @@
 
             renderScene();
 
-            // ★ AI赤塗り完了後、自動的に寸法・補正設定ポップアップを表示
+            // AI赤塗り完了後、自動的に寸法・補正設定ポップアップを表示
             document.getElementById('modalDetectedCount').innerText = predictions.length;
             openScaleModal();
 
@@ -461,7 +477,7 @@
     }
 
     // ==========================================
-    // ★ ポップアップ制御と2つの十字マーカー初期配置
+    // ポップアップ制御と2つの十字マーカー初期配置
     // ==========================================
     function openScaleModal() {
         syncQuickButtons();
@@ -477,7 +493,6 @@
         saveLastLayerParams();
         document.getElementById('scaleSettingsModal').style.display = 'none';
 
-        // 初回は画面の右寄り（78%位置）の上下に2つの十字マーカーを配置
         if (crosshairs.length !== 2) {
             crosshairs = [
                 { x: Math.round(canvas.width * 0.78), y: Math.round(canvas.height * 0.28) },
@@ -489,7 +504,6 @@
         actionBar.style.display = 'block';
 
         if (isScaleConfirmed) {
-            // すでに確定済みの場合は新しい設定値で即座に再計算
             confirmCrosshairScale();
         } else {
             renderScene();
@@ -499,13 +513,12 @@
     }
 
     // ==========================================
-    // ★ キャンバス描画（元画像 ＋ 赤塗り ＋ 2つの十字マーカー）
+    // キャンバス描画（元画像 ＋ 赤塗り ＋ 2つの十字マーカー）
     // ==========================================
     function renderScene() {
         if (!originalImage) return;
         ctx.putImageData(originalImage, 0, 0);
 
-        // 赤塗りマスクの重ね合わせ
         if (extractedMaskCanvas) {
             ctx.save();
             ctx.globalAlpha = 0.6;
@@ -513,12 +526,10 @@
             ctx.restore();
         }
 
-        // 2つの十字マーカーと接続ラインの描画
         if (showCrosshairs && crosshairs.length === 2) {
             const p1 = crosshairs[0];
             const p2 = crosshairs[1];
 
-            // 2点を結ぶポールライン（白フチ＋緑または黄色）
             ctx.save();
             ctx.beginPath();
             ctx.moveTo(p1.x, p1.y);
@@ -536,19 +547,16 @@
             ctx.stroke();
             ctx.restore();
 
-            // 2つの十字（＋）を描画
-            drawCrosshair(p1.x, p1.y, "上端/端1", draggingIndex === 0);
-            drawCrosshair(p2.x, p2.y, "下端/端2", draggingIndex === 1);
+            drawCrosshair(p1.x, p1.y, draggingIndex === 0);
+            drawCrosshair(p2.x, p2.y, draggingIndex === 1);
         }
     }
 
-    function drawCrosshair(x, y, label, isDragging) {
-        // 指で押さえても周囲の十字線が見えるようアームを長めに設計
+    function drawCrosshair(x, y, isDragging) {
         const arm = isDragging ? Math.max(48, canvas.width * 0.055) : Math.max(36, canvas.width * 0.04);
 
         ctx.save();
 
-        // 外側の白い太フチ（背景や赤い丸太の上でもクッキリ見せる）
         ctx.beginPath();
         ctx.moveTo(x - arm, y);
         ctx.lineTo(x + arm, y);
@@ -559,7 +567,6 @@
         ctx.lineCap = 'round';
         ctx.stroke();
 
-        // 内側の赤い十字線（ドラッグ中は鮮やかなオレンジ/黄色）
         ctx.beginPath();
         ctx.moveTo(x - arm, y);
         ctx.lineTo(x + arm, y);
@@ -570,7 +577,6 @@
         ctx.lineCap = 'round';
         ctx.stroke();
 
-        // 中心のターゲットリングと交点ドット
         ctx.beginPath();
         ctx.arc(x, y, isDragging ? 14 : 10, 0, 2 * Math.PI);
         ctx.strokeStyle = '#ffffff';
@@ -586,7 +592,7 @@
     }
 
     // ==========================================
-    // ★ 十字マーカーのタッチ・マウスドラッグ操作
+    // 十字マーカーのタッチ・マウスドラッグ操作
     // ==========================================
     function getCanvasCoords(e) {
         const rect = canvas.getBoundingClientRect();
@@ -613,7 +619,7 @@
 
         const d0 = Math.hypot(x - crosshairs[0].x, y - crosshairs[0].y);
         const d1 = Math.hypot(x - crosshairs[1].x, y - crosshairs[1].y);
-        const hitRadius = Math.max(80, canvas.width * 0.12); // 指で掴みやすい広めの判定半径
+        const hitRadius = Math.max(80, canvas.width * 0.12);
 
         if (d0 <= d1 && d0 < hitRadius) {
             draggingIndex = 0;
@@ -655,7 +661,7 @@
     window.addEventListener('touchend', handlePointerUp);
 
     // ==========================================
-    // ★ ポール位置の確定と概算材積の計算
+    // ポール位置の確定・材積計算・保存プレビュー起動
     // ==========================================
     function confirmCrosshairScale() {
         if (!showCrosshairs || crosshairs.length !== 2) return;
@@ -679,13 +685,13 @@
         renderScene();
         calculateVolume();
 
-        const depthM = parseFloat(document.getElementById('logDepth').value) || 4.0;
-        statusText.innerText = `✅ 計算完了！（ポール:${realPoleMeters}m / 奥行:${depthM}m）※十字は再度動かして微調整できます`;
-        statusText.style.color = "#2e7d32";
+        showSavePreview();
     }
 
     function calculateVolume() {
         if (pixelsPerMeter === 0 || extractedPixelCount === 0) {
+             currentAreaM2 = 0;
+             currentVolumeM3 = 0;
              document.getElementById('resultArea').innerText = "0.000";
              document.getElementById('resultVolume').innerText = "0.000";
              return;
@@ -702,8 +708,106 @@
             volumeM3 = volumeM3 * (4 / 3.141);
         }
         
+        currentAreaM2 = totalAreaM2;
+        currentVolumeM3 = volumeM3;
         document.getElementById('resultArea').innerText = totalAreaM2.toFixed(3);
         document.getElementById('resultVolume').innerText = volumeM3.toFixed(3);
+    }
+
+    // ==========================================
+    // ★ 保存プレビュー生成とネイティブ共有 / 保存
+    // ==========================================
+    function showSavePreview() {
+        statusText.innerText = "保存用画像を生成中...";
+        statusText.style.color = "#1565c0";
+
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    generateImage(position.coords.latitude.toFixed(5), position.coords.longitude.toFixed(5));
+                },
+                (error) => {
+                    generateImage(null, null);
+                },
+                { timeout: 5000 }
+            );
+        } else {
+            generateImage(null, null);
+        }
+    }
+
+    function generateImage(lat, lon) {
+        const offCanvas = document.createElement('canvas');
+        offCanvas.width = canvas.width;
+        offCanvas.height = canvas.height;
+        const offCtx = offCanvas.getContext('2d');
+
+        // 現在のキャンバス（元画像＋赤塗り＋ポール十字線）をコピー
+        offCtx.drawImage(canvas, 0, 0);
+
+        const timeStr = new Date().toLocaleString('ja-JP');
+        const areaStr = currentAreaM2.toFixed(3);
+        const volStr = currentVolumeM3.toFixed(3);
+
+        // 左下に半透明黒ボックスとテキストを合成
+        offCtx.fillStyle = "rgba(0,0,0,0.6)";
+        offCtx.fillRect(10, offCanvas.height - 105, 430, 95);
+        offCtx.fillStyle = "#FFFFFF";
+        offCtx.font = "16px Arial";
+
+        offCtx.fillText(`撮影日時: ${timeStr}`, 20, offCanvas.height - 80);
+        if (lat && lon) {
+            offCtx.fillText(`位置情報: Lat ${lat}, Lon ${lon}`, 20, offCanvas.height - 55);
+        } else {
+            offCtx.fillText(`位置情報: 取得できませんでした`, 20, offCanvas.height - 55);
+        }
+        offCtx.fillText(`断面積: ${areaStr} m2 / 概算材積: ${volStr} m3`, 20, offCanvas.height - 30);
+
+        previewDataUrl = offCanvas.toDataURL('image/jpeg', 0.9);
+        document.getElementById('previewImg').src = previewDataUrl;
+        document.getElementById('savePreviewModal').style.display = 'block';
+
+        const realPoleMeters = parseFloat(document.getElementById('poleLength').value) || 2.0;
+        const depthM = parseFloat(document.getElementById('logDepth').value) || 4.0;
+        statusText.innerText = `✅ 計算完了！（ポール:${realPoleMeters}m / 奥行:${depthM}m / 材積:${volStr}m³）`;
+        statusText.style.color = "#2e7d32";
+    }
+
+    function closeSaveModal() {
+        document.getElementById('savePreviewModal').style.display = 'none';
+    }
+
+    async function downloadImage() {
+        if (!previewDataUrl) return;
+        const fileName = `層積検尺_${Date.now()}.jpg`;
+
+        const arr = previewDataUrl.split(',');
+        const mime = arr[0].match(/:(.*?);/)[1];
+        const bstr = atob(arr[1]);
+        let n = bstr.length;
+        const u8arr = new Uint8Array(n);
+        while (n--) { u8arr[n] = bstr.charCodeAt(n); }
+        const blob = new Blob([u8arr], { type: mime });
+        const file = new File([blob], fileName, { type: mime });
+
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+            try {
+                await navigator.share({ files: [file], title: '層積検尺画像', text: '層積検尺の測定結果画像です' });
+                closeSaveModal();
+                return;
+            } catch (error) {
+                console.log('Share canceled or failed', error);
+            }
+        }
+
+        const link = document.createElement('a');
+        link.download = fileName;
+        link.href = previewDataUrl;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        alert("画像を保存しました！");
+        closeSaveModal();
     }
 </script>
 </body>
