@@ -12,7 +12,7 @@
     <meta name="apple-mobile-web-app-title" content="層積検尺">
     <link rel="apple-touch-icon" href="icon-192.png">
 
-    <!-- ★ リポジトリ内の roboflow.js を読み込む前に、モデル通信先をローカルへ振り替えるフックを設定 -->
+    <!-- リポジトリ内の roboflow.js を読み込む前に、モデル通信先をローカルへ振り替えるフックを設定 -->
     <script>
       (function() {
         function rewriteModelUrl(url) {
@@ -60,7 +60,7 @@
     <style>
         body { font-family: -apple-system, sans-serif; padding: 10px; background: #fdf5e6; color: #333; margin: 0; padding-bottom: 40px; }
         .card { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 15px; }
-        .header { border-bottom: 2px solid #8b4513; margin-bottom: 10px; padding-bottom: 5px; }
+        .header { border-bottom: 2px solid #8b4513; margin-bottom: 10px; padding-bottom: 5px; display: flex; justify-content: space-between; align-items: center; }
         h2 { margin: 0; font-size: 1.2em; color: #5d4037; }
         
         .btn { display: block; width: 100%; padding: 12px; border: none; border-radius: 6px; font-weight: bold; font-size: 1rem; color: white; margin-bottom: 10px; cursor: pointer; text-align: center; box-sizing: border-box;}
@@ -68,47 +68,52 @@
         .btn-green { background: #2e7d32; }
         .btn-orange { background: #e65100; }
         .btn-gray { background: #757575; }
-        .btn-purple { background: #673ab7; }
         .btn-teal { background: #00897b; }
         .btn:disabled { background: #bdbdbd !important; cursor: not-allowed; }
 
-        #canvas-container { position: relative; width: 100%; max-height: 60vh; overflow: hidden; border: 1px solid #ccc; background: #000; border-radius: 8px; margin-bottom: 10px; text-align: center; }
-        canvas { max-width: 100%; height: auto; display: block; margin: 0 auto; touch-action: none; cursor: crosshair;}
+        #canvas-container { position: relative; width: 100%; max-height: 62vh; overflow: hidden; border: 1px solid #ccc; background: #000; border-radius: 8px; margin-bottom: 10px; text-align: center; }
+        canvas { max-width: 100%; height: auto; display: block; margin: 0 auto; touch-action: none; cursor: pointer;}
         
-        .control-group { margin-bottom: 15px; background: #fff3e0; padding: 10px; border-radius: 8px; border: 1px solid #ffcc80; }
-        .control-group.ai-group { background: #f3e5f5; border-color: #ce93d8; }
-        .control-group.rf-group { background: #e8f5e9; border-color: #81c784; }
+        .control-group { margin-bottom: 15px; background: #fff3e0; padding: 12px; border-radius: 8px; border: 1px solid #ffcc80; }
+        .control-group.rf-group { background: #e8f5e9; border-color: #81c784; margin-bottom: 0; }
         
         label { font-weight: bold; font-size: 0.9em; display: block; margin-bottom: 5px; color: #5d4037;}
-        input[type="range"] { width: 100%; margin: 10px 0; cursor: pointer;}
-        input[type="number"], input[type="password"], select { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 1rem; box-sizing: border-box; margin-bottom: 8px; background: white;}
+        input[type="number"], select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; font-size: 1rem; box-sizing: border-box; background: white;}
         
         .input-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
-        .input-row label { margin-bottom: 0; width: 35%; }
-        .input-row select { width: 63%; margin-bottom: 0; }
+        .input-row label { margin-bottom: 0; width: 38%; }
+        .input-row select, .input-row input { width: 60%; margin-bottom: 0; font-weight: bold; }
 
         .result-box { background: #e8f5e9; border: 2px solid #4caf50; padding: 15px; border-radius: 8px; text-align: center; font-size: 1.2em; font-weight: bold; color: #1b5e20; margin-bottom: 15px; }
-        #status-text { color: #d32f2f; font-weight: bold; font-size: 0.9em; margin-bottom: 10px; text-align: center; }
+        #status-text { color: #d32f2f; font-weight: bold; font-size: 0.92em; margin-bottom: 10px; text-align: center; line-height: 1.4; }
         
-        .color-preview { display: block; width: 100%; height: 25px; border: 1px solid #999; margin-bottom: 5px; border-radius: 4px; }
-        
-        .toggle-box { margin-top: 15px; padding: 10px; background: #fff; border-radius: 6px; border: 1px solid #ccc; }
-        .toggle-label { display: flex; align-items: center; margin: 0; color: #1565c0; cursor: pointer; }
+        .toggle-box { margin-top: 10px; padding: 10px; background: #fff; border-radius: 6px; border: 1px solid #ccc; text-align: left; }
+        .toggle-label { display: flex; align-items: center; margin: 0; color: #1565c0; cursor: pointer; font-weight: bold; font-size: 0.9em; }
         .toggle-checkbox { width: auto; margin: 0 10px 0 0; transform: scale(1.3); }
-        .toggle-desc { font-size: 0.8em; color: #666; margin-left: 5px; font-weight: normal; }
+        .toggle-desc { font-size: 0.8em; color: #666; font-weight: normal; }
 
-        .toolbar { display: flex; gap: 5px; margin-bottom: 10px; }
-        .tool-btn { flex: 1; padding: 10px; border: 2px solid #ccc; border-radius: 6px; background: #eee; text-align: center; font-weight: bold; cursor: pointer;}
-        .tool-btn.active { background: #ffcc80; border-color: #e65100; color: #e65100; }
-        
         .photo-buttons { display: flex; gap: 10px; margin-bottom: 10px; }
         .photo-buttons label { flex: 1; margin-bottom: 0; }
+
+        /* ★ 十字マーカー確定バー */
+        #crosshair-action-bar { display: none; background: #fff3e0; border: 2px solid #ffb74d; border-radius: 8px; padding: 10px; margin-bottom: 12px; }
+        .action-bar-btns { display: flex; gap: 8px; }
+
+        /* ★ ポップアップモーダル用スタイル */
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.55); z-index: 99; overflow-y: auto; }
+        .modal-content { background: white; margin: 8% auto; padding: 18px; width: 90%; max-width: 400px; border-radius: 12px; text-align: center; box-shadow: 0 4px 15px rgba(0,0,0,0.2); box-sizing: border-box; }
+        .modal-section { background: #fff8e1; border: 1px solid #ffe082; border-radius: 8px; padding: 12px; margin-bottom: 12px; text-align: left; }
+        .quick-btns { display: flex; gap: 6px; margin-top: 6px; margin-bottom: 12px; }
+        .quick-btn { flex: 1; padding: 7px 0; background: #fff; border: 1px solid #bcaaa4; border-radius: 5px; font-weight: bold; font-size: 0.85rem; color: #5d4037; cursor: pointer; }
+        .quick-btn.active-val { background: #8d6e63; color: white; border-color: #5d4037; }
     </style>
 </head>
 <body>
 
 <div class="card">
-    <div class="header"><h2>層積検尺 v2.1<span style="font-size:0.7em; color:#757575;"> (内蔵AI版)</span></h2></div>
+    <div class="header">
+        <h2>層積検尺 v2.2<span style="font-size:0.7em; color:#757575;"></span></h2>
+    </div>
     
     <div class="photo-buttons">
         <label class="btn btn-blue">
@@ -127,6 +132,17 @@
         <canvas id="mainCanvas"></canvas>
     </div>
 
+    <!-- ★ 十字マーカー調整・確定バー（AI赤塗り後に出現） -->
+    <div id="crosshair-action-bar">
+        <div style="font-size: 0.85em; font-weight: bold; color: #e65100; margin-bottom: 8px; text-align: center;">
+            👆 画面上の2つの「＋」を指でポールの両端へ移動してください
+        </div>
+        <div class="action-bar-btns">
+            <button class="btn btn-gray" style="flex: 0.45; margin-bottom: 0; padding: 10px 6px; font-size: 0.85rem;" onclick="openScaleModal()">⚙️ 寸法設定</button>
+            <button class="btn btn-orange" style="flex: 1; margin-bottom: 0; padding: 10px;" onclick="confirmCrosshairScale()">✅ ポール位置を確定して計算</button>
+        </div>
+    </div>
+
     <div class="result-box">
         概算材積: <span id="resultVolume" style="font-size: 1.5em; color: #d32f2f;">0.000</span> m³
         <div style="font-size: 0.6em; color: #555; margin-top: 5px;">
@@ -134,9 +150,9 @@
         </div>
     </div>
 
-    <!-- ① 内蔵AIモデル（Roboflow）による高速自動赤塗りエリア（内部上限1000本） -->
+    <!-- AIモデル（Roboflow）による高速自動赤塗りエリア（内部上限1000本） -->
     <div class="control-group rf-group">
-        <label style="color: #2e7d32;">① 🧠 AIによる自動赤塗り（オフライン高速）</label>
+        <label style="color: #2e7d32;">🧠 AIによる自動赤塗り（オフライン高速）</label>
         <button class="btn btn-teal" id="btnLoadModel" onclick="loadRoboflowModel()">📥 認識モデル読込（事前キャッシュ用）</button>
         <div class="input-row">
             <label style="color: #2e7d32;">🎯 検出感度</label>
@@ -148,98 +164,70 @@
         </div>
         <button class="btn btn-green" id="btnRunRF" onclick="runRoboflowPainting()" style="margin-bottom: 0;">⚡ AIで一括赤塗り</button>
     </div>
+</div>
 
-    <!-- ★ Gemini 4 自動赤塗りエリア（機能は温存し、display: none; で非表示） -->
-    <div class="control-group ai-group" style="display: none;">
-        <label style="color: #4a148c;">🤖 オプションB: Geminiによる自動赤塗り（オンライン高精度）</label>
-        <input type="password" id="geminiApiKey" placeholder="Gemini APIキー (初回のみ)">
-        <div class="input-row">
-            <label style="color: #4a148c;">🧠 思考レベル</label>
-            <select id="thinkingLevelSelect" style="border-color: #ce93d8;">
-                <option value="LOW" selected>Low (高速・推奨)</option>
-                <option value="MEDIUM">Medium (標準バランス)</option>
-                <option value="HIGH">High (高精度・じっくり)</option>
-            </select>
+<!-- ★ AI赤塗り完了後に自動表示される「ポール実寸・丸太奥行・断面補正」設定モーダル -->
+<div id="scaleSettingsModal" class="modal">
+    <div class="modal-content">
+        <h3 style="margin-top:0; margin-bottom:12px; color:#e65100;">📏 寸法・断面補正の設定</h3>
+        <p style="font-size:0.85em; color:#555; margin-top:0; margin-bottom:12px;">
+            AIで <b id="modalDetectedCount" style="color:#2e7d32;">0</b> 本の丸太を赤塗りしました。<br>測定条件を確認して「設定OK」を押してください。
+        </p>
+
+        <div class="modal-section">
+            <!-- ポールの実寸 -->
+            <div class="input-row" style="margin-bottom: 4px;">
+                <label>📏 ポール実寸(m)</label>
+                <input type="number" id="poleLength" value="2.0" step="0.1" min="0.1" oninput="syncQuickButtons()">
+            </div>
+            <div class="quick-btns" id="poleQuickBtns">
+                <button type="button" class="quick-btn" onclick="setQuickPole(1.0)">1.0m</button>
+                <button type="button" class="quick-btn" onclick="setQuickPole(1.5)">1.5m</button>
+                <button type="button" class="quick-btn active-val" onclick="setQuickPole(2.0)">2.0m</button>
+                <button type="button" class="quick-btn" onclick="setQuickPole(3.0)">3.0m</button>
+            </div>
+
+            <!-- 丸太の奥行き（材長） -->
+            <div class="input-row" style="margin-bottom: 4px;">
+                <label>🌲 丸太の奥行(m)</label>
+                <input type="number" id="logDepth" value="4.0" step="0.1" min="0.1" oninput="syncQuickButtons()">
+            </div>
+            <div class="quick-btns" id="depthQuickBtns" style="margin-bottom: 8px;">
+                <button type="button" class="quick-btn" onclick="setQuickDepth(2.0)">2m</button>
+                <button type="button" class="quick-btn" onclick="setQuickDepth(3.0)">3m</button>
+                <button type="button" class="quick-btn active-val" onclick="setQuickDepth(4.0)">4m</button>
+                <button type="button" class="quick-btn" onclick="setQuickDepth(6.0)">6m</button>
+            </div>
+
+            <!-- 断面補正 -->
+            <div class="toggle-box">
+                <label class="toggle-label">
+                    <input type="checkbox" id="correctionToggle" class="toggle-checkbox" checked>
+                    <span>断面補正（× 4 / 3.141）<br><span class="toggle-desc">※実面積から末口自乗法へ換算</span></span>
+                </label>
+            </div>
         </div>
-        <button class="btn btn-purple" id="btnRunAI" onclick="runAIPainting()" style="margin-bottom: 0;">✨ Geminiで一括赤塗り（オンライン限定）</button>
+
+        <button class="btn btn-green" style="margin-bottom:0; font-size:1.05rem; padding:14px;" onclick="confirmScaleModal()">
+            設定OK（十字マーカーでポール合わせ）
+        </button>
     </div>
-
-    <!-- ★ スポイト色抽出エリア（機能は温存し、display: none; で非表示） -->
-    <div class="control-group" style="display: none;">
-        <label>抽出する色（スポイト抽出・最大3色）</label>
-        <div style="display: flex; gap: 5px; margin-bottom: 10px;">
-            <div style="flex: 1; text-align: center;">
-                <span id="colorBox1" class="color-preview" style="background: rgb(139, 69, 19);"></span>
-                <button class="btn btn-gray" style="padding: 8px; font-size: 0.8em; margin:0;" onclick="setMode('color1')">👆 色1</button>
-            </div>
-            <div style="flex: 1; text-align: center;">
-                <span id="colorBox2" class="color-preview" style="background: #eee;"></span>
-                <button class="btn btn-gray" style="padding: 8px; font-size: 0.8em; margin:0;" onclick="setMode('color2')">👆 色2</button>
-            </div>
-            <div style="flex: 1; text-align: center;">
-                <span id="colorBox3" class="color-preview" style="background: #eee;"></span>
-                <button class="btn btn-gray" style="padding: 8px; font-size: 0.8em; margin:0;" onclick="setMode('color3')">👆 色3</button>
-            </div>
-        </div>
-        <button class="btn btn-gray" style="background: #e57373; padding: 6px; font-size: 0.8em;" onclick="clearExtraColors()">🗑 色2・色3をリセット</button>
-        
-        <label style="margin-top: 10px;">色の許容範囲 (スライダーで調整)</label>
-        <input type="range" id="toleranceSlider" min="10" max="150" value="40" oninput="processColor()">
-    </div>
-
-    <!-- ② 測量ポール縮尺設定 -->
-    <div class="control-group">
-        <label>② 📏 測量ポールで縮尺を設定（画面上の両端をタップ）</label>
-        <button class="btn btn-orange" id="btnSetScale" onclick="setMode('scale')">📏 ポールの両端を2箇所タップする</button>
-        <div style="display: flex; gap: 10px; margin-top: 10px;">
-            <div style="flex: 1;">
-                <label>ポールの実寸(m)</label>
-                <input type="number" id="poleLength" value="2.0" step="0.1" onchange="calculateVolume()">
-            </div>
-            <div style="flex: 1;">
-                <label>丸太の奥行き(m)</label>
-                <input type="number" id="logDepth" value="4.0" step="0.1" onchange="calculateVolume()">
-            </div>
-        </div>
-        
-        <div class="toggle-box">
-            <label class="toggle-label">
-                <input type="checkbox" id="correctionToggle" class="toggle-checkbox" checked onchange="calculateVolume()">
-                <span>断面補正（× 4 / 3.141）<br><span class="toggle-desc">※実面積から末口自乗法へ換算</span></span>
-            </label>
-        </div>
-    </div>
-
-    <!-- ③ 消しゴム・書き足し補正 -->
-    <div class="control-group" style="background: #e1f5fe; border-color: #81d4fa;">
-        <label>③ 🎨 不要な赤色を消去 / 補正（消しゴム）</label>
-        <div class="toolbar">
-            <div class="tool-btn" id="tool-pan" onclick="setMode('pan')">✋ スクロール</div>
-            <div class="tool-btn active" id="tool-eraser" onclick="setMode('eraser')">⚪️ 消しゴム</div>
-            <div class="tool-btn" id="tool-paint" onclick="setMode('paint')">🔴 書き足し</div>
-        </div>
-        <label>ブラシの太さ</label>
-        <input type="range" id="brushSizeSlider" min="5" max="100" value="30">
-        <button class="btn btn-gray" style="background: #607d8b; padding: 8px; margin-bottom: 0;" onclick="resetColorMask()">🔄 赤塗りを完全リセット</button>
-    </div>
-
 </div>
 
 <script>
     // ==========================================
-    // ★ API・モデル設定（Gemini・スポイト機能も裏側に温存）
+    // API・モデル設定
     // ==========================================
     const PROJECT_NAME = "my-first-project-bjosg";
     const RF_API_KEY = "rf_sRyNyDbysrbVYyp2FNCslDCxdpN2";
     const MODEL_VERSION = 40;
-    const MODEL_CANDIDATES = ["gemini-4-hydrogen", "gemini-3.8-flash", "gemini-2.5-flash"];
+    const LAST_LAYER_PARAMS_KEY = "timber_layer_last_params";
 
     window.addEventListener('load', () => {
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('./sw.js').catch(err => console.log('SW failed!', err));
         }
-        const savedKey = localStorage.getItem('gemini_api_key_vol') || localStorage.getItem('gemini_api_key_ai');
-        if (savedKey) document.getElementById('geminiApiKey').value = savedKey;
+        loadLastLayerParams();
     });
 
     const imageInputCamera = document.getElementById('imageInputCamera');
@@ -247,27 +235,70 @@
     const canvas = document.getElementById('mainCanvas');
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
     const statusText = document.getElementById('status-text');
-    const toleranceSlider = document.getElementById('toleranceSlider');
-    const brushSizeSlider = document.getElementById('brushSizeSlider');
-    const btnRunAI = document.getElementById('btnRunAI');
     const btnRunRF = document.getElementById('btnRunRF');
+    const actionBar = document.getElementById('crosshair-action-bar');
     
     let originalImage = null;
     let logModel = null;
-    let targetColors = [
-        { r: 139, g: 69, b: 19, active: true },
-        { r: 0, g: 0, b: 0, active: false },
-        { r: 0, g: 0, b: 0, active: false }
-    ];
-    let currentMode = 'eraser'; 
-    let scalePoints = [];
-    let pixelsPerMeter = 0;
-    let extractedPixelCount = 0;
-
-    let isDrawing = false;
     let extractedMaskCanvas = null; 
     let extractedMaskCtx = null;
+    let extractedPixelCount = 0;
 
+    // ★ 2つの十字マーカー座標とドラッグ制御用変数
+    let crosshairs = []; // [{x, y}, {x, y}]
+    let showCrosshairs = false;
+    let isScaleConfirmed = false;
+    let draggingIndex = -1;
+    let pixelsPerMeter = 0;
+
+    // ==========================================
+    // クイックボタン＆前回設定の記憶処理
+    // ==========================================
+    function setQuickPole(val) {
+        document.getElementById('poleLength').value = val;
+        syncQuickButtons();
+    }
+
+    function setQuickDepth(val) {
+        document.getElementById('logDepth').value = val;
+        syncQuickButtons();
+    }
+
+    function syncQuickButtons() {
+        const pVal = parseFloat(document.getElementById('poleLength').value);
+        document.querySelectorAll('#poleQuickBtns .quick-btn').forEach(btn => {
+            btn.classList.toggle('active-val', parseFloat(btn.innerText) === pVal);
+        });
+        const dVal = parseFloat(document.getElementById('logDepth').value);
+        document.querySelectorAll('#depthQuickBtns .quick-btn').forEach(btn => {
+            btn.classList.toggle('active-val', parseFloat(btn.innerText) === dVal);
+        });
+    }
+
+    function saveLastLayerParams() {
+        localStorage.setItem(LAST_LAYER_PARAMS_KEY, JSON.stringify({
+            pole: document.getElementById('poleLength').value,
+            depth: document.getElementById('logDepth').value,
+            corr: document.getElementById('correctionToggle').checked
+        }));
+    }
+
+    function loadLastLayerParams() {
+        try {
+            const saved = JSON.parse(localStorage.getItem(LAST_LAYER_PARAMS_KEY) || 'null');
+            if (!saved) return;
+            if (saved.pole) document.getElementById('poleLength').value = saved.pole;
+            if (saved.depth) document.getElementById('logDepth').value = saved.depth;
+            if (typeof saved.corr === 'boolean') document.getElementById('correctionToggle').checked = saved.corr;
+            syncQuickButtons();
+        } catch (e) {
+            console.log('Param load skip', e);
+        }
+    }
+
+    // ==========================================
+    // 画像読み込み処理
+    // ==========================================
     function handleImageUpload(e) {
         const file = e.target.files[0];
         if (!file) return;
@@ -293,15 +324,20 @@
                 extractedMaskCanvas.width = width;
                 extractedMaskCanvas.height = height;
                 extractedMaskCtx = extractedMaskCanvas.getContext('2d', { willReadFrequently: true });
-                extractedMaskCtx.globalCompositeOperation = 'source-over';
                 extractedMaskCtx.clearRect(0, 0, width, height);
+                
+                // 状態リセット
+                extractedPixelCount = 0;
+                pixelsPerMeter = 0;
+                crosshairs = [];
+                showCrosshairs = false;
+                isScaleConfirmed = false;
+                actionBar.style.display = 'none';
+                document.getElementById('pixelCount').innerText = "0";
+                calculateVolume();
                 
                 statusText.innerText = "2. 「AIで一括赤塗り」を実行してください";
                 statusText.style.color = "#1565c0";
-                
-                extractedPixelCount = 0;
-                scalePoints = [];
-                calculateVolume();
             }
             img.src = event.target.result;
         }
@@ -321,7 +357,7 @@
     }
 
     // ==========================================
-    // ★ 内蔵AIモデル（Roboflow）自動赤塗り（内部上限1000本）
+    // 内蔵AIモデル（Roboflow）自動赤塗り（上限1000本）
     // ==========================================
     function applyRoboflowConfig() {
         if (!logModel) return;
@@ -399,11 +435,19 @@
                 }
             });
 
-            setMode('eraser');
-            finalComposite();
+            // 赤塗りピクセル数を集計
+            const maskData = extractedMaskCtx.getImageData(0, 0, canvas.width, canvas.height).data;
+            extractedPixelCount = 0;
+            for (let i = 3; i < maskData.length; i += 4) {
+                if (maskData[i] > 128) extractedPixelCount++;
+            }
+            document.getElementById('pixelCount').innerText = extractedPixelCount.toLocaleString();
 
-            statusText.innerText = `✅ AIが ${predictions.length} 本の丸太を赤塗りしました！ポール設定や消しゴム補正を行ってください。`;
-            statusText.style.color = "#2e7d32";
+            renderScene();
+
+            // ★ AI赤塗り完了後、自動的に寸法・補正設定ポップアップを表示
+            document.getElementById('modalDetectedCount').innerText = predictions.length;
+            openScaleModal();
 
         } catch (error) {
             console.error(error);
@@ -417,205 +461,133 @@
     }
 
     // ==========================================
-    // ★ Gemini 4 自動赤塗り（非表示だが温存）
+    // ★ ポップアップ制御と2つの十字マーカー初期配置
     // ==========================================
-    async function fetchWithTimeout(url, options, timeoutMs = 120000) {
-        const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), timeoutMs);
-        try {
-            return await fetch(url, { ...options, signal: controller.signal });
-        } finally {
-            clearTimeout(timer);
-        }
+    function openScaleModal() {
+        syncQuickButtons();
+        document.getElementById('scaleSettingsModal').style.display = 'block';
     }
 
-    async function callGeminiWithFallback(apiKey, basePayload, onStatusUpdate) {
-        let lastErrorMsg = "";
-        const selectedThinkingLevel = document.getElementById('thinkingLevelSelect')?.value || "LOW";
+    function confirmScaleModal() {
+        const poleVal = parseFloat(document.getElementById('poleLength').value);
+        const depthVal = parseFloat(document.getElementById('logDepth').value);
+        if (!poleVal || poleVal <= 0) return alert("正しいポールの実寸(m)を入力してください");
+        if (!depthVal || depthVal <= 0) return alert("正しい丸太の奥行(m)を入力してください");
 
-        for (const modelName of MODEL_CANDIDATES) {
-            if (onStatusUpdate) onStatusUpdate(`${modelName} (${selectedThinkingLevel})`);
-            const supportsThinking = modelName.startsWith("gemini-4") || modelName.startsWith("gemini-3");
-            const payloadWithThinking = JSON.parse(JSON.stringify(basePayload));
-            if (supportsThinking) {
-                payloadWithThinking.generationConfig = {
-                    ...(payloadWithThinking.generationConfig || {}),
-                    thinkingConfig: { thinkingLevel: selectedThinkingLevel }
-                };
-            }
-            try {
-                let response = await fetchWithTimeout(
-                    `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`,
-                    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payloadWithThinking) },
-                    120000
-                );
-                let data = await response.json();
-                if (data.error && response.status === 400 && supportsThinking) {
-                    response = await fetchWithTimeout(
-                        `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`,
-                        { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(basePayload) },
-                        120000
-                    );
-                    data = await response.json();
-                }
-                if (data.error) {
-                    lastErrorMsg = `[${modelName}] ${data.error.message}`;
-                    continue;
-                }
-                if (data.candidates && data.candidates[0] && data.candidates[0].content) {
-                    const parts = data.candidates[0].content.parts || [];
-                    const answerPart = parts.find(p => typeof p.text === 'string' && !p.thought) || parts.find(p => typeof p.text === 'string');
-                    if (answerPart) {
-                        return { text: answerPart.text, usedModel: `${modelName} [思考:${selectedThinkingLevel}]` };
-                    }
-                }
-            } catch (err) {
-                lastErrorMsg = `[${modelName}] ${err.name === 'AbortError' ? 'タイムアウト(120秒超過)' : err.message}`;
-            }
+        saveLastLayerParams();
+        document.getElementById('scaleSettingsModal').style.display = 'none';
+
+        // 初回は画面の右寄り（78%位置）の上下に2つの十字マーカーを配置
+        if (crosshairs.length !== 2) {
+            crosshairs = [
+                { x: Math.round(canvas.width * 0.78), y: Math.round(canvas.height * 0.28) },
+                { x: Math.round(canvas.width * 0.78), y: Math.round(canvas.height * 0.75) }
+            ];
         }
-        throw new Error(lastErrorMsg || "AIモデルでの通信に失敗しました。APIキーをご確認ください。");
-    }
 
-    async function runAIPainting() {
-        if (!originalImage) return alert("先に写真を読み込んでください");
-        const apiKey = document.getElementById('geminiApiKey').value.trim();
-        if (!apiKey) return alert("Gemini APIキーを入力してください");
-        
-        localStorage.setItem('gemini_api_key_vol', apiKey);
-        
-        btnRunAI.disabled = true;
-        btnRunAI.innerText = "⏳ Geminiが丸太を検出中...";
-        statusText.style.color = "#673ab7";
+        showCrosshairs = true;
+        actionBar.style.display = 'block';
 
-        try {
-            const cleanCanvas = getCleanImageCanvas();
-            const base64Image = cleanCanvas.toDataURL("image/jpeg", 0.8).split(',')[1];
-
-            const promptText = `
-                添付された画像内の「すべての丸太の断面（木口）」を検出し、それぞれのバウンディングボックス（囲み枠）を以下のJSON形式で出力してください。
-                【重要】
-                ・座標（ymin, xmin, ymax, xmax）は画像の幅と高さを1.0とした割合（0.0〜1.0の数値）で記述してください。
-                ・Markdownブロック（\`\`\`json など）は絶対に含めず、純粋なJSON文字列のみを出力してください。
-                {
-                  "logs": [
-                    {"ymin": 0.123, "xmin": 0.456, "ymax": 0.234, "xmax": 0.567}
-                  ]
-                }
-            `;
-
-            const payload = {
-                contents: [{ parts: [{ text: promptText }, { inlineData: { data: base64Image, mimeType: "image/jpeg" } }] }],
-                generationConfig: { response_mime_type: "application/json" }
-            };
-
-            const res = await callGeminiWithFallback(apiKey, payload, (modelStatus) => {
-                statusText.innerText = `🤖 ${modelStatus} で丸太の座標を計算中...`;
-            });
-
-            const cleanText = res.text.replace(/```json/g, '').replace(/```/g, '').trim();
-            const jsonResponse = JSON.parse(cleanText);
-
-            if (!jsonResponse || !Array.isArray(jsonResponse.logs)) {
-                throw new Error("AIから正しい座標データが返ってきませんでした。");
-            }
-
-            extractedMaskCtx.globalCompositeOperation = 'source-over';
-            extractedMaskCtx.clearRect(0, 0, extractedMaskCanvas.width, extractedMaskCanvas.height);
-            extractedMaskCtx.fillStyle = 'rgba(255, 0, 0, 1)';
-            
-            const w = canvas.width;
-            const h = canvas.height;
-            let paintedCount = 0;
-
-            jsonResponse.logs.forEach(log => {
-                let ymin, xmin, ymax, xmax;
-                if (Array.isArray(log) && log.length >= 4) {
-                    [ymin, xmin, ymax, xmax] = log.map(Number);
-                } else if (log && typeof log === 'object') {
-                    ymin = Number(log.ymin ?? log.y_min ?? (Array.isArray(log.box_2d) ? log.box_2d[0] : NaN));
-                    xmin = Number(log.xmin ?? log.x_min ?? (Array.isArray(log.box_2d) ? log.box_2d[1] : NaN));
-                    ymax = Number(log.ymax ?? log.y_max ?? (Array.isArray(log.box_2d) ? log.box_2d[2] : NaN));
-                    xmax = Number(log.xmax ?? log.x_max ?? (Array.isArray(log.box_2d) ? log.box_2d[3] : NaN));
-                }
-
-                if ([ymin, xmin, ymax, xmax].some(v => isNaN(v))) return;
-
-                if (ymax > 1.5 || xmax > 1.5) {
-                    ymin /= 1000; xmin /= 1000; ymax /= 1000; xmax /= 1000;
-                }
-
-                const y = ymin * h;
-                const x = xmin * w;
-                const boxH = Math.abs(ymax - ymin) * h;
-                const boxW = Math.abs(xmax - xmin) * w;
-                
-                const cx = x + boxW / 2;
-                const cy = y + boxH / 2;
-                const radiusX = boxW / 2;
-                const radiusY = boxH / 2;
-                
-                if (radiusX > 0.5 && radiusY > 0.5) {
-                    extractedMaskCtx.beginPath();
-                    extractedMaskCtx.ellipse(cx, cy, radiusX, radiusY, 0, 0, 2 * Math.PI);
-                    extractedMaskCtx.fill();
-                    paintedCount++;
-                }
-            });
-
-            setMode('eraser');
-            finalComposite();
-            
-            statusText.innerText = `✅ ${res.usedModel} が ${paintedCount} 本を赤塗りしました！消しゴムで補正してください。`;
-            statusText.style.color = "#2e7d32";
-
-        } catch (error) {
-            console.error(error);
-            alert('AI通信エラー: ' + error.message);
-            statusText.innerText = "エラーが発生しました: " + error.message;
-            statusText.style.color = "#d32f2f";
-        } finally {
-            btnRunAI.disabled = false;
-            btnRunAI.innerText = "✨ Geminiで一括赤塗り（オンライン限定）";
-        }
-    }
-
-    // ==========================================
-    // 既存UIとキャンバス操作ロジック
-    // ==========================================
-    function setMode(mode) {
-        if (!originalImage) return alert("先に写真を読み込んでください");
-        currentMode = mode;
-        
-        const tools = ['pan', 'eraser', 'paint'];
-        tools.forEach(t => {
-            const btn = document.getElementById(`tool-${t}`);
-            if (t === mode) btn.classList.add('active');
-            else btn.classList.remove('active');
-        });
-
-        if (mode.startsWith('color')) {
-            const num = mode.replace('color', '');
-            statusText.innerText = `👆 画像内の【色${num}】に設定したい丸太をタップしてください`;
-            statusText.style.color = "#d32f2f";
-        } else if (mode === 'scale') {
-            currentMode = 'scale1';
-            scalePoints = [];
-            statusText.innerText = "📏 測量ポールの【1点目】をタップしてください";
+        if (isScaleConfirmed) {
+            // すでに確定済みの場合は新しい設定値で即座に再計算
+            confirmCrosshairScale();
+        } else {
+            renderScene();
+            statusText.innerText = "3. 画面上の2つの「＋」を指でポールの両端へ移動し、「ポール位置を確定して計算」を押してください";
             statusText.style.color = "#e65100";
-        } else if (mode === 'eraser' || mode === 'paint') {
-            statusText.innerText = "🎨 下のツールで赤色を書き足したり、消したり出来ます。";
-            statusText.style.color = "#01579b";
         }
     }
 
-    function clearExtraColors() {
-        targetColors[1].active = false;
-        targetColors[2].active = false;
-        document.getElementById('colorBox2').style.backgroundColor = '#eee';
-        document.getElementById('colorBox3').style.backgroundColor = '#eee';
-        processColor();
+    // ==========================================
+    // ★ キャンバス描画（元画像 ＋ 赤塗り ＋ 2つの十字マーカー）
+    // ==========================================
+    function renderScene() {
+        if (!originalImage) return;
+        ctx.putImageData(originalImage, 0, 0);
+
+        // 赤塗りマスクの重ね合わせ
+        if (extractedMaskCanvas) {
+            ctx.save();
+            ctx.globalAlpha = 0.6;
+            ctx.drawImage(extractedMaskCanvas, 0, 0);
+            ctx.restore();
+        }
+
+        // 2つの十字マーカーと接続ラインの描画
+        if (showCrosshairs && crosshairs.length === 2) {
+            const p1 = crosshairs[0];
+            const p2 = crosshairs[1];
+
+            // 2点を結ぶポールライン（白フチ＋緑または黄色）
+            ctx.save();
+            ctx.beginPath();
+            ctx.moveTo(p1.x, p1.y);
+            ctx.lineTo(p2.x, p2.y);
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
+            ctx.lineWidth = 6;
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.moveTo(p1.x, p1.y);
+            ctx.lineTo(p2.x, p2.y);
+            ctx.strokeStyle = isScaleConfirmed ? '#00e676' : '#ffeb3b';
+            ctx.lineWidth = 3;
+            if (!isScaleConfirmed) ctx.setLineDash([8, 6]);
+            ctx.stroke();
+            ctx.restore();
+
+            // 2つの十字（＋）を描画
+            drawCrosshair(p1.x, p1.y, "上端/端1", draggingIndex === 0);
+            drawCrosshair(p2.x, p2.y, "下端/端2", draggingIndex === 1);
+        }
     }
 
+    function drawCrosshair(x, y, label, isDragging) {
+        // 指で押さえても周囲の十字線が見えるようアームを長めに設計
+        const arm = isDragging ? Math.max(48, canvas.width * 0.055) : Math.max(36, canvas.width * 0.04);
+
+        ctx.save();
+
+        // 外側の白い太フチ（背景や赤い丸太の上でもクッキリ見せる）
+        ctx.beginPath();
+        ctx.moveTo(x - arm, y);
+        ctx.lineTo(x + arm, y);
+        ctx.moveTo(x, y - arm);
+        ctx.lineTo(x, y + arm);
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 8;
+        ctx.lineCap = 'round';
+        ctx.stroke();
+
+        // 内側の赤い十字線（ドラッグ中は鮮やかなオレンジ/黄色）
+        ctx.beginPath();
+        ctx.moveTo(x - arm, y);
+        ctx.lineTo(x + arm, y);
+        ctx.moveTo(x, y - arm);
+        ctx.lineTo(x, y + arm);
+        ctx.strokeStyle = isDragging ? '#ff6d00' : '#d50000';
+        ctx.lineWidth = 4;
+        ctx.lineCap = 'round';
+        ctx.stroke();
+
+        // 中心のターゲットリングと交点ドット
+        ctx.beginPath();
+        ctx.arc(x, y, isDragging ? 14 : 10, 0, 2 * Math.PI);
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2.5;
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.arc(x, y, 3, 0, 2 * Math.PI);
+        ctx.fillStyle = '#00e676';
+        ctx.fill();
+
+        ctx.restore();
+    }
+
+    // ==========================================
+    // ★ 十字マーカーのタッチ・マウスドラッグ操作
+    // ==========================================
     function getCanvasCoords(e) {
         const rect = canvas.getBoundingClientRect();
         const scaleX = canvas.width / rect.width;
@@ -630,205 +602,86 @@
             clientY = e.clientY;
         }
         
-        const x = Math.floor((clientX - rect.left) * scaleX);
-        const y = Math.floor((clientY - rect.top) * scaleY);
-        return {x, y};
+        const x = Math.max(0, Math.min(canvas.width, Math.floor((clientX - rect.left) * scaleX)));
+        const y = Math.max(0, Math.min(canvas.height, Math.floor((clientY - rect.top) * scaleY)));
+        return { x, y };
     }
 
-    canvas.addEventListener('mousedown', startDrawing);
-    canvas.addEventListener('mousemove', draw);
-    window.addEventListener('mouseup', stopDrawing);
+    function handlePointerDown(e) {
+        if (!showCrosshairs || crosshairs.length !== 2) return;
+        const { x, y } = getCanvasCoords(e);
 
-    canvas.addEventListener('touchstart', (e) => {
-        if (currentMode === 'eraser' || currentMode === 'paint') {
-            e.preventDefault(); 
-            startDrawing(e);
-        }
-    });
-    canvas.addEventListener('touchmove', (e) => {
-        if (currentMode === 'eraser' || currentMode === 'paint') {
-            e.preventDefault();
-            draw(e);
-        }
-    });
-    window.addEventListener('touchend', stopDrawing);
+        const d0 = Math.hypot(x - crosshairs[0].x, y - crosshairs[0].y);
+        const d1 = Math.hypot(x - crosshairs[1].x, y - crosshairs[1].y);
+        const hitRadius = Math.max(80, canvas.width * 0.12); // 指で掴みやすい広めの判定半径
 
-    function startDrawing(e) {
-        if (currentMode === 'eraser' || currentMode === 'paint') {
-            isDrawing = true;
-            draw(e); 
-        } else if (currentMode.startsWith('color') || currentMode.startsWith('scale')) {
-            handleSingleTap(e);
-        }
-    }
-
-    function stopDrawing() {
-        if (isDrawing) {
-            isDrawing = false;
-            extractedMaskCtx.beginPath(); 
-            finalComposite(); 
-        }
-    }
-
-    function draw(e) {
-        if (!isDrawing || !extractedMaskCtx || (!originalImage)) return;
-        
-        const {x, y} = getCanvasCoords(e);
-        const brushSize = parseInt(brushSizeSlider.value);
-
-        extractedMaskCtx.lineWidth = brushSize;
-        extractedMaskCtx.lineCap = 'round';
-
-        if (currentMode === 'eraser') {
-            extractedMaskCtx.globalCompositeOperation = 'destination-out';
-            extractedMaskCtx.strokeStyle = 'rgba(0,0,0,1)'; 
-        } else if (currentMode === 'paint') {
-            extractedMaskCtx.globalCompositeOperation = 'source-over';
-            extractedMaskCtx.strokeStyle = 'rgba(255,0,0,1)';
+        if (d0 <= d1 && d0 < hitRadius) {
+            draggingIndex = 0;
+        } else if (d1 < d0 && d1 < hitRadius) {
+            draggingIndex = 1;
         } else {
             return;
         }
 
-        extractedMaskCtx.lineTo(x, y);
-        extractedMaskCtx.stroke();
-        extractedMaskCtx.beginPath();
-        extractedMaskCtx.moveTo(x, y);
-        
-        compositeDuringDrawing(); 
+        if (e.cancelable) e.preventDefault();
+        isScaleConfirmed = false;
+        crosshairs[draggingIndex] = { x, y };
+        renderScene();
     }
 
-    function handleSingleTap(e) {
-        if (!originalImage) return;
-        
-        const {x, y} = getCanvasCoords(e);
+    function handlePointerMove(e) {
+        if (draggingIndex === -1) return;
+        if (e.cancelable) e.preventDefault();
+        const { x, y } = getCanvasCoords(e);
+        crosshairs[draggingIndex] = { x, y };
+        renderScene();
+    }
 
-        if (currentMode.startsWith('color')) {
-            const indexColor = parseInt(currentMode.replace('color', '')) - 1;
-            const pixel = originalImage.data;
-            const index = (y * canvas.width + x) * 4;
-            
-            targetColors[indexColor] = { r: pixel[index], g: pixel[index+1], b: pixel[index+2], active: true };
-            document.getElementById(`colorBox${indexColor+1}`).style.backgroundColor = `rgb(${targetColors[indexColor].r},${targetColors[indexColor].g},${targetColors[indexColor].b})`;
-            
-            currentMode = 'eraser'; 
-            statusText.innerText = "🎨 他の色を追加するか、スライダー調整後、消しゴムで補正してください。";
-            statusText.style.color = "#01579b";
-            setMode('eraser');
-            processColor(); 
-
-        } else if (currentMode === 'scale1') {
-            scalePoints.push({x, y});
-            drawPoint(x, y, '#00ff00');
-            currentMode = 'scale2';
-            statusText.innerText = "📏 測量ポールの【2点目】をタップしてください";
-            
-        } else if (currentMode === 'scale2') {
-            scalePoints.push({x, y});
-            drawPoint(x, y, '#00ff00');
-            drawLine(scalePoints[0], scalePoints[1], '#00ff00');
-            
-            const dx = scalePoints[1].x - scalePoints[0].x;
-            const dy = scalePoints[1].y - scalePoints[0].y;
-            const pixelDist = Math.sqrt(dx*dx + dy*dy);
-            
-            const realPoleMeters = parseFloat(document.getElementById('poleLength').value);
-            if (realPoleMeters <= 0) { alert("正しいポールの実寸を入力してください"); pixelsPerMeter = 0; return; }
-            pixelsPerMeter = pixelDist / realPoleMeters; 
-            
-            currentMode = 'eraser';
-            statusText.innerText = "✅ スケール完了。不要な赤色は消しゴムで消してください。";
-            statusText.style.color = "#01579b";
-            setMode('eraser');
-            finalComposite(); 
+    function handlePointerUp() {
+        if (draggingIndex !== -1) {
+            draggingIndex = -1;
+            renderScene();
+            statusText.innerText = "👆 位置が合ったら「✅ ポール位置を確定して計算」を押してください";
+            statusText.style.color = "#e65100";
         }
     }
 
-    function resetColorMask() {
-        if (!originalImage) return;
-        if (confirm("現在の赤塗り結果とお絵描きを完全にリセットしますか？")) {
-            extractedMaskCtx.globalCompositeOperation = 'source-over';
-            extractedMaskCtx.clearRect(0, 0, extractedMaskCanvas.width, extractedMaskCanvas.height);
-            finalComposite(); 
-            statusText.innerText = "リセットしました。再度「AIで一括赤塗り」を実行してください。";
+    canvas.addEventListener('mousedown', handlePointerDown);
+    canvas.addEventListener('mousemove', handlePointerMove);
+    window.addEventListener('mouseup', handlePointerUp);
+
+    canvas.addEventListener('touchstart', handlePointerDown, { passive: false });
+    canvas.addEventListener('touchmove', handlePointerMove, { passive: false });
+    window.addEventListener('touchend', handlePointerUp);
+
+    // ==========================================
+    // ★ ポール位置の確定と概算材積の計算
+    // ==========================================
+    function confirmCrosshairScale() {
+        if (!showCrosshairs || crosshairs.length !== 2) return;
+
+        const dx = crosshairs[1].x - crosshairs[0].x;
+        const dy = crosshairs[1].y - crosshairs[0].y;
+        const pixelDist = Math.hypot(dx, dy);
+
+        if (pixelDist < 5) {
+            return alert("2つの十字マーカーが重なっています。ポールの両端へ離して配置してください。");
         }
-    }
 
-    function processColor() {
-        if (!originalImage || !extractedMaskCtx) return;
-        
-        const tolerance = parseInt(toleranceSlider.value);
-        const data = originalImage.data;
-        
-        extractedMaskCtx.globalCompositeOperation = 'source-over';
-        extractedMaskCtx.clearRect(0, 0, extractedMaskCanvas.width, extractedMaskCanvas.height);
-        const maskData = new ImageData(canvas.width, canvas.height);
-        const md = maskData.data;
-
-        for (let i = 0; i < data.length; i += 4) {
-            const r = data[i];
-            const g = data[i+1];
-            const b = data[i+2];
-            
-            let isMatch = false;
-            
-            for (let c = 0; c < 3; c++) {
-                if (!targetColors[c].active) continue;
-                
-                const distance = Math.sqrt(
-                    Math.pow(r - targetColors[c].r, 2) + 
-                    Math.pow(g - targetColors[c].g, 2) + 
-                    Math.pow(b - targetColors[c].b, 2)
-                );
-
-                if (distance < tolerance) {
-                    isMatch = true;
-                    break;
-                }
-            }
-
-            if (isMatch) {
-                md[i] = 255;   // R
-                md[i+1] = 0;   // G
-                md[i+2] = 0;   // B
-                md[i+3] = 255; // Alpha
-            }
+        const realPoleMeters = parseFloat(document.getElementById('poleLength').value);
+        if (!realPoleMeters || realPoleMeters <= 0) {
+            openScaleModal();
+            return;
         }
-        extractedMaskCtx.putImageData(maskData, 0, 0);
-        finalComposite(); 
-    }
 
-    function compositeDuringDrawing() {
-        if (!originalImage) return;
-        ctx.putImageData(originalImage, 0, 0);
-        ctx.save();
-        ctx.globalAlpha = 0.6; 
-        ctx.fillStyle = 'red'; 
-        ctx.globalCompositeOperation = 'source-over';
-        ctx.drawImage(extractedMaskCanvas, 0, 0);
-        ctx.restore();
-    }
-
-    function finalComposite() {
-        if (!originalImage || !extractedMaskCtx) return;
-
-        compositeDuringDrawing();
-        
-        const maskData = extractedMaskCtx.getImageData(0, 0, canvas.width, canvas.height).data;
-        extractedPixelCount = 0;
-        for (let i = 3; i < maskData.length; i += 4) {
-            if (maskData[i] > 128) { 
-                extractedPixelCount++;
-            }
-        }
-        
-        if (scalePoints.length === 2) {
-            drawPoint(scalePoints[0].x, scalePoints[0].y, '#00ff00');
-            drawPoint(scalePoints[1].x, scalePoints[1].y, '#00ff00');
-            drawLine(scalePoints[0], scalePoints[1], '#00ff00');
-        }
-        
-        document.getElementById('pixelCount').innerText = extractedPixelCount.toLocaleString();
+        pixelsPerMeter = pixelDist / realPoleMeters;
+        isScaleConfirmed = true;
+        renderScene();
         calculateVolume();
+
+        const depthM = parseFloat(document.getElementById('logDepth').value) || 4.0;
+        statusText.innerText = `✅ 計算完了！（ポール:${realPoleMeters}m / 奥行:${depthM}m）※十字は再度動かして微調整できます`;
+        statusText.style.color = "#2e7d32";
     }
 
     function calculateVolume() {
@@ -851,18 +704,6 @@
         
         document.getElementById('resultArea').innerText = totalAreaM2.toFixed(3);
         document.getElementById('resultVolume').innerText = volumeM3.toFixed(3);
-    }
-
-    function drawPoint(x, y, color) {
-        ctx.beginPath();
-        ctx.arc(x, y, 8, 0, 2 * Math.PI);
-        ctx.fillStyle = color; ctx.fill();
-        ctx.lineWidth = 2; ctx.strokeStyle = '#fff'; ctx.stroke();
-    }
-    
-    function drawLine(p1, p2, color) {
-        ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y);
-        ctx.strokeStyle = color; ctx.lineWidth = 4; ctx.stroke();
     }
 </script>
 </body>
