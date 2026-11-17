@@ -1,4 +1,4 @@
-const CACHE_NAME = 'timber-layer-cache-v2.1.0'; // ★内蔵モデル対応版
+const CACHE_NAME = 'timber-layer-cache-v2.2.0'; // 
 const urlsToCache = [
   './',
   './index.html',
