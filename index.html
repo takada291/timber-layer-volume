@@ -112,7 +112,7 @@
 
 <div class="card">
     <div class="header">
-        <h2>層積検尺 v2.3<span style="font-size:0.7em; color:#757575;"></span></h2>
+        <h2>層積検尺 v2.4<span style="font-size:0.7em; color:#757575;"></span></h2>
     </div>
     
     <div class="photo-buttons">
@@ -146,7 +146,7 @@
     <div class="result-box">
         概算材積: <span id="resultVolume" style="font-size: 1.5em; color: #d32f2f;">0.000</span> m³
         <div style="font-size: 0.6em; color: #555; margin-top: 5px;">
-            抽出面積: <span id="resultArea">0.000</span> m² / ピクセル数: <span id="pixelCount">0</span> px
+            検知: <span id="resultCount">0</span> 本 / 面積: <span id="resultArea">0.000</span> m² (<span id="pixelCount">0</span> px)
         </div>
     </div>
 
@@ -214,11 +214,11 @@
     </div>
 </div>
 
-<!-- ★ 新設：保存プレビューモーダル（日時・位置情報・断面積・概算材積を左下に合成） -->
+<!-- 保存プレビューモーダル（日時・位置情報・検知本数・断面積・概算材積を左下に合成） -->
 <div id="savePreviewModal" class="modal">
     <div class="modal-content" style="margin: 5% auto;">
         <h3 style="margin-top:0; color:#1565c0;">📸 保存プレビュー</h3>
-        <p style="font-size:0.8em; color:#666;">撮影日時・GPS・断面積・概算材積付き</p>
+        <p style="font-size:0.8em; color:#666;">撮影日時・GPS・検知本数・断面積・概算材積付き</p>
         <img id="previewImg" style="width:100%; border-radius:8px; border:2px solid #ccc; margin-bottom:10px;">
         <div style="display:flex; gap:10px; margin-top:10px;">
             <button class="btn btn-gray" style="flex:1; padding:10px; margin-bottom:0;" onclick="closeSaveModal()">閉じる</button>
@@ -256,6 +256,7 @@
     let extractedMaskCanvas = null; 
     let extractedMaskCtx = null;
     let extractedPixelCount = 0;
+    let detectedLogCount = 0; // ★ 検知本数を保持
 
     // 2つの十字マーカー座標と計算結果保持用変数
     let crosshairs = [];
@@ -344,11 +345,13 @@
                 
                 // 状態リセット
                 extractedPixelCount = 0;
+                detectedLogCount = 0;
                 pixelsPerMeter = 0;
                 crosshairs = [];
                 showCrosshairs = false;
                 isScaleConfirmed = false;
                 actionBar.style.display = 'none';
+                document.getElementById('resultCount').innerText = "0";
                 document.getElementById('pixelCount').innerText = "0";
                 calculateVolume();
                 
@@ -434,6 +437,7 @@
 
             const cleanCanvas = getCleanImageCanvas();
             const predictions = await logModel.detect(cleanCanvas);
+            detectedLogCount = predictions.length;
 
             extractedMaskCtx.globalCompositeOperation = 'source-over';
             extractedMaskCtx.clearRect(0, 0, extractedMaskCanvas.width, extractedMaskCanvas.height);
@@ -451,18 +455,19 @@
                 }
             });
 
-            // 赤塗りピクセル数を集計
+            // 赤塗りピクセル数と本数を更新
             const maskData = extractedMaskCtx.getImageData(0, 0, canvas.width, canvas.height).data;
             extractedPixelCount = 0;
             for (let i = 3; i < maskData.length; i += 4) {
                 if (maskData[i] > 128) extractedPixelCount++;
             }
+            document.getElementById('resultCount').innerText = detectedLogCount.toLocaleString();
             document.getElementById('pixelCount').innerText = extractedPixelCount.toLocaleString();
 
             renderScene();
 
             // AI赤塗り完了後、自動的に寸法・補正設定ポップアップを表示
-            document.getElementById('modalDetectedCount').innerText = predictions.length;
+            document.getElementById('modalDetectedCount').innerText = detectedLogCount.toLocaleString();
             openScaleModal();
 
         } catch (error) {
@@ -507,7 +512,7 @@
             confirmCrosshairScale();
         } else {
             renderScene();
-            statusText.innerText = "3. 画面上の2つの「＋」を指でポールの両端へ移動し、「ポール位置を確定して計算」を押してください";
+            statusText.innerText = `3. ${detectedLogCount}本を赤塗り済み：2つの「＋」をポールの両端へ移動し確定してください`;
             statusText.style.color = "#e65100";
         }
     }
@@ -715,7 +720,7 @@
     }
 
     // ==========================================
-    // ★ 保存プレビュー生成とネイティブ共有 / 保存
+    // 保存プレビュー生成とネイティブ共有 / 保存
     // ==========================================
     function showSavePreview() {
         statusText.innerText = "保存用画像を生成中...";
@@ -749,19 +754,26 @@
         const areaStr = currentAreaM2.toFixed(3);
         const volStr = currentVolumeM3.toFixed(3);
 
-        // 左下に半透明黒ボックスとテキストを合成
-        offCtx.fillStyle = "rgba(0,0,0,0.6)";
-        offCtx.fillRect(10, offCanvas.height - 105, 430, 95);
-        offCtx.fillStyle = "#FFFFFF";
-        offCtx.font = "16px Arial";
+        const line1 = `撮影日時: ${timeStr}`;
+        const line2 = (lat && lon) ? `位置情報: Lat ${lat}, Lon ${lon}` : `位置情報: 取得できませんでした`;
+        const line3 = `検知: ${detectedLogCount}本 / 断面積: ${areaStr} m2 / 概算材積: ${volStr} m3`;
 
-        offCtx.fillText(`撮影日時: ${timeStr}`, 20, offCanvas.height - 80);
-        if (lat && lon) {
-            offCtx.fillText(`位置情報: Lat ${lat}, Lon ${lon}`, 20, offCanvas.height - 55);
-        } else {
-            offCtx.fillText(`位置情報: 取得できませんでした`, 20, offCanvas.height - 55);
-        }
-        offCtx.fillText(`断面積: ${areaStr} m2 / 概算材積: ${volStr} m3`, 20, offCanvas.height - 30);
+        // テキスト幅に合わせて左下の半透明黒ボックスを自動調整
+        offCtx.font = "16px Arial";
+        const maxTextWidth = Math.max(
+            offCtx.measureText(line1).width,
+            offCtx.measureText(line2).width,
+            offCtx.measureText(line3).width
+        );
+        const boxWidth = Math.min(offCanvas.width - 20, Math.max(430, maxTextWidth + 24));
+
+        offCtx.fillStyle = "rgba(0,0,0,0.6)";
+        offCtx.fillRect(10, offCanvas.height - 105, boxWidth, 95);
+        offCtx.fillStyle = "#FFFFFF";
+
+        offCtx.fillText(line1, 20, offCanvas.height - 80);
+        offCtx.fillText(line2, 20, offCanvas.height - 55);
+        offCtx.fillText(line3, 20, offCanvas.height - 30);
 
         previewDataUrl = offCanvas.toDataURL('image/jpeg', 0.9);
         document.getElementById('previewImg').src = previewDataUrl;
@@ -769,7 +781,7 @@
 
         const realPoleMeters = parseFloat(document.getElementById('poleLength').value) || 2.0;
         const depthM = parseFloat(document.getElementById('logDepth').value) || 4.0;
-        statusText.innerText = `✅ 計算完了！（ポール:${realPoleMeters}m / 奥行:${depthM}m / 材積:${volStr}m³）`;
+        statusText.innerText = `✅ 計算完了！（検知:${detectedLogCount}本 / ポール:${realPoleMeters}m / 奥行:${depthM}m / 材積:${volStr}m³）`;
         statusText.style.color = "#2e7d32";
     }
 
