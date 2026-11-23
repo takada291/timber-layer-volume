@@ -12,42 +12,8 @@
     <meta name="apple-mobile-web-app-title" content="層積検尺">
     <link rel="apple-touch-icon" href="icon-192.png">
 
-    <!-- リポジトリ内の roboflow.js を読み込む前に、モデル通信先をローカルへ振り替えるフックを設定 -->
-    <script>
-      (function() {
-        function rewriteModelUrl(url) {
-          if (typeof url !== 'string') return url;
-          if (url.includes('my-first-project-bjosg/40') || url.includes('model.json')) {
-            return './model.json';
-          }
-          const binMatch = url.match(/group1-shard\d+of\d+\.bin/);
-          if (binMatch) {
-            return './' + binMatch[0];
-          }
-          return url;
-        }
-
-        const originalFetch = window.fetch;
-        window.fetch = function(input, init) {
-          if (typeof input === 'string') {
-            input = rewriteModelUrl(input);
-          } else if (input && typeof input.url === 'string') {
-            const newUrl = rewriteModelUrl(input.url);
-            if (newUrl !== input.url) {
-              input = new Request(newUrl, input);
-            }
-          }
-          return originalFetch.call(this, input, init);
-        };
-
-        const originalOpen = XMLHttpRequest.prototype.open;
-        XMLHttpRequest.prototype.open = function(method, url, ...rest) {
-          const newUrl = rewriteModelUrl(url);
-          return originalOpen.call(this, method, newUrl, ...rest);
-        };
-      })();
-    </script>
-    <script src="./roboflow.js"></script>
+    <!-- ONNX Runtime Web (WASM版 / MITライセンス / 初回読込時にSWでオフラインキャッシュ) -->
+    <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.18.0/dist/ort.wasm.min.js"></script>
 
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-WXBP6CPKLP"></script>
     <script>
@@ -63,7 +29,7 @@
         .header { border-bottom: 2px solid #8b4513; margin-bottom: 10px; padding-bottom: 5px; display: flex; justify-content: space-between; align-items: center; }
         h2 { margin: 0; font-size: 1.2em; color: #5d4037; }
         
-        .btn { display: block; width: 100%; padding: 12px; border: none; border-radius: 6px; font-weight: bold; font-size: 1rem; color: white; margin-bottom: 10px; cursor: pointer; text-align: center; box-sizing: border-box;}
+        .btn { display: block; width: 100%; padding: 12px; border: none; border-radius: 6px; font-weight: bold; font-size: 1rem; color: white; margin-bottom: 10px; cursor: pointer; text-align: center; box-sizing: border-box; touch-action: manipulation; }
         .btn-blue { background: #1565c0; }
         .btn-green { background: #2e7d32; }
         .btn-orange { background: #e65100; }
@@ -72,13 +38,13 @@
         .btn:disabled { background: #bdbdbd !important; cursor: not-allowed; }
 
         #canvas-container { position: relative; width: 100%; max-height: 62vh; overflow: hidden; border: 1px solid #ccc; background: #000; border-radius: 8px; margin-bottom: 10px; text-align: center; }
-        canvas { max-width: 100%; height: auto; display: block; margin: 0 auto; touch-action: none; cursor: pointer;}
+        canvas { max-width: 100%; height: auto; display: block; margin: 0 auto; touch-action: none; cursor: pointer; }
         
         .control-group { margin-bottom: 15px; background: #fff3e0; padding: 12px; border-radius: 8px; border: 1px solid #ffcc80; }
         .control-group.rf-group { background: #e8f5e9; border-color: #81c784; margin-bottom: 0; }
         
-        label { font-weight: bold; font-size: 0.9em; display: block; margin-bottom: 5px; color: #5d4037;}
-        input[type="number"], select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; font-size: 1rem; box-sizing: border-box; background: white;}
+        label { font-weight: bold; font-size: 0.9em; display: block; margin-bottom: 5px; color: #5d4037; }
+        input[type="number"], select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; font-size: 1rem; box-sizing: border-box; background: white; }
         
         .input-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
         .input-row label { margin-bottom: 0; width: 38%; }
@@ -112,7 +78,7 @@
 
 <div class="card">
     <div class="header">
-        <h2>層積検尺 v2.4<span style="font-size:0.7em; color:#757575;"></span></h2>
+        <h2>層積検尺 v3.0</h2>
     </div>
     
     <div class="photo-buttons">
@@ -150,10 +116,10 @@
         </div>
     </div>
 
-    <!-- AIモデル（Roboflow）による高速自動赤塗りエリア（内部上限1000本） -->
+    <!-- ローカルAIモデルによる高速自動赤塗りエリア（完全オフライン・上限2000本） -->
     <div class="control-group rf-group">
         <label style="color: #2e7d32;">🧠 AIによる自動赤塗り（オフライン高速）</label>
-        <button class="btn btn-teal" id="btnLoadModel" onclick="loadRoboflowModel()">📥 認識モデル読込（事前キャッシュ用）</button>
+        <button class="btn btn-teal" id="btnLoadModel" onclick="loadOnnxModel()">📥 認識モデル読込（事前キャッシュ用）</button>
         <div class="input-row">
             <label style="color: #2e7d32;">🎯 検出感度</label>
             <select id="rfThresholdSelect" style="border-color: #81c784;">
@@ -162,7 +128,7 @@
                 <option value="0.60">厳しめ・確実のみ (60%以上)</option>
             </select>
         </div>
-        <button class="btn btn-green" id="btnRunRF" onclick="runRoboflowPainting()" style="margin-bottom: 0;">⚡ AIで一括赤塗り</button>
+        <button class="btn btn-green" id="btnRunAI" onclick="runOnnxPainting()" style="margin-bottom: 0;">⚡ AIで一括赤塗り</button>
     </div>
 </div>
 
@@ -229,11 +195,13 @@
 
 <script>
     // ==========================================
-    // API・モデル設定
+    // ローカルONNX推論設定（完全オフライン・上限2000本）
     // ==========================================
-    const PROJECT_NAME = "my-first-project-bjosg";
-    const RF_API_KEY = "rf_sRyNyDbysrbVYyp2FNCslDCxdpN2";
-    const MODEL_VERSION = 40;
+    const ONNX_MODEL_URL = './weights.onnx';
+    const MODEL_INPUT_SIZE = 640;
+    const IOU_THRESHOLD = 0.50;
+    const MAX_OBJECTS = 2000;
+    const ORT_WASM_CDN = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.18.0/dist/';
     const LAST_LAYER_PARAMS_KEY = "timber_layer_last_params";
 
     window.addEventListener('load', () => {
@@ -248,15 +216,16 @@
     const canvas = document.getElementById('mainCanvas');
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
     const statusText = document.getElementById('status-text');
-    const btnRunRF = document.getElementById('btnRunRF');
+    const btnRunAI = document.getElementById('btnRunAI');
     const actionBar = document.getElementById('crosshair-action-bar');
     
     let originalImage = null;
-    let logModel = null;
+    let ortSession = null;
+    let prepCanvas = null;
     let extractedMaskCanvas = null; 
     let extractedMaskCtx = null;
     let extractedPixelCount = 0;
-    let detectedLogCount = 0; // ★ 検知本数を保持
+    let detectedLogCount = 0;
 
     // 2つの十字マーカー座標と計算結果保持用変数
     let crosshairs = [];
@@ -332,6 +301,8 @@
                 }
                 canvas.width = width;
                 canvas.height = height;
+                ctx.imageSmoothingEnabled = true;
+                ctx.imageSmoothingQuality = 'high';
                 ctx.drawImage(img, 0, 0, width, height);
                 originalImage = ctx.getImageData(0, 0, canvas.width, canvas.height);
                 
@@ -376,78 +347,216 @@
     }
 
     // ==========================================
-    // 内蔵AIモデル（Roboflow）自動赤塗り（上限1000本）
+    // ONNX Runtime Web ローカル推論エンジン（YOLOv8n / 上限2000本）
     // ==========================================
-    function applyRoboflowConfig() {
-        if (!logModel) return;
-        const selectedThreshold = parseFloat(document.getElementById('rfThresholdSelect')?.value) || 0.40;
-        try {
-            logModel.configure({
-                threshold: selectedThreshold,
-                overlap: 0.50,
-                max_objects: 1000
-            });
-        } catch (e) {
-            console.log("Roboflow configure warning:", e);
+    async function ensureOnnxSession() {
+        if (ortSession) return ortSession;
+        if (typeof ort === 'undefined') {
+            throw new Error("推論エンジンが読み込まれていません。初回はオンライン環境でページを開いてください。");
         }
+
+        ort.env.wasm.wasmPaths = ORT_WASM_CDN;
+        ort.env.wasm.numThreads = 1;
+        ort.env.wasm.simd = true;
+
+        ortSession = await ort.InferenceSession.create(ONNX_MODEL_URL, {
+            executionProviders: ['wasm'],
+            graphOptimizationLevel: 'all'
+        });
+        return ortSession;
     }
 
-    async function loadRoboflowModel() {
+    async function loadOnnxModel() {
         const btn = document.getElementById('btnLoadModel');
         btn.disabled = true;
         btn.innerText = "⏳ 内蔵モデル読込中...";
         statusText.innerText = "リポジトリ内の認識モデルを読み込んでいます...";
+        statusText.style.color = "#00897b";
         
         try {
-            const rf = await window.roboflow.auth({ publishable_key: RF_API_KEY });
-            logModel = await rf.load({ model: PROJECT_NAME, version: MODEL_VERSION });
-            applyRoboflowConfig();
+            const t0 = performance.now();
+            await ensureOnnxSession();
+            const sec = ((performance.now() - t0) / 1000).toFixed(2);
             
             btn.innerText = "✅ 認識モデル準備完了";
             btn.style.background = "#388e3c"; 
-            statusText.innerText = "認識モデルの準備が完了しました。オフラインでも高速赤塗りが可能です。";
+            statusText.innerText = `認識モデルの準備が完了しました（${sec}秒）。オフラインでも高速赤塗りが可能です。`;
             statusText.style.color = "#2e7d32";
         } catch (error) {
+            console.error(error);
             alert("モデル読込失敗: " + error.message);
-            statusText.innerText = "モデル読込エラーが発生しました";
+            statusText.innerText = "モデル読込エラーが発生しました: " + error.message;
+            statusText.style.color = "#d32f2f";
             btn.disabled = false;
             btn.innerText = "📥 認識モデル読込（事前キャッシュ用）";
         }
     }
 
-    async function runRoboflowPainting() {
+    // V40学習時と同じ Stretch 640x640 -> NCHW FP32 [1, 3, 640, 640] (0.0〜1.0)
+    function preprocessImageToTensor(srcCanvas) {
+        if (!prepCanvas) {
+            prepCanvas = document.createElement('canvas');
+            prepCanvas.width = MODEL_INPUT_SIZE;
+            prepCanvas.height = MODEL_INPUT_SIZE;
+        }
+        const prepCtx = prepCanvas.getContext('2d', { willReadFrequently: true });
+        prepCtx.imageSmoothingEnabled = true;
+        prepCtx.imageSmoothingQuality = 'high';
+        prepCtx.drawImage(srcCanvas, 0, 0, MODEL_INPUT_SIZE, MODEL_INPUT_SIZE);
+
+        const imgData = prepCtx.getImageData(0, 0, MODEL_INPUT_SIZE, MODEL_INPUT_SIZE).data;
+        const area = MODEL_INPUT_SIZE * MODEL_INPUT_SIZE;
+        const floatData = new Float32Array(3 * area);
+
+        for (let i = 0; i < area; i++) {
+            const p = i << 2;
+            floatData[i] = imgData[p] / 255.0;
+            floatData[area + i] = imgData[p + 1] / 255.0;
+            floatData[2 * area + i] = imgData[p + 2] / 255.0;
+        }
+        return new ort.Tensor('float32', floatData, [1, 3, MODEL_INPUT_SIZE, MODEL_INPUT_SIZE]);
+    }
+
+    function calcIoU(a, b) {
+        const interX1 = Math.max(a.x1, b.x1);
+        const interY1 = Math.max(a.y1, b.y1);
+        const interX2 = Math.min(a.x2, b.x2);
+        const interY2 = Math.min(a.y2, b.y2);
+        const interW = Math.max(0, interX2 - interX1);
+        const interH = Math.max(0, interY2 - interY1);
+        const interArea = interW * interH;
+        if (interArea <= 0) return 0;
+        const areaA = (a.x2 - a.x1) * (a.y2 - a.y1);
+        const areaB = (b.x2 - b.x1) * (b.y2 - b.y1);
+        return interArea / (areaA + areaB - interArea + 1e-6);
+    }
+
+    // YOLOv8出力テンソル [1, 5, 8400] (または [1, 8400, 5]) をデコード＆NMS
+    function postprocessYoloOutput(outputTensor, imgW, imgH, confThreshold) {
+        const data = outputTensor.data;
+        const dims = outputTensor.dims;
+        const candidates = [];
+
+        const isChannelFirst = (dims.length === 3 && dims[1] <= dims[2]);
+        const numProps = isChannelFirst ? dims[1] : dims[2];
+        const numAnchors = isChannelFirst ? dims[2] : dims[1];
+        const numClasses = numProps - 4;
+
+        let maxCoord = 0;
+
+        for (let i = 0; i < numAnchors; i++) {
+            let bestScore = 0;
+            if (isChannelFirst) {
+                for (let c = 0; c < numClasses; c++) {
+                    const s = data[(4 + c) * numAnchors + i];
+                    if (s > bestScore) bestScore = s;
+                }
+            } else {
+                const offset = i * numProps;
+                for (let c = 0; c < numClasses; c++) {
+                    const s = data[offset + 4 + c];
+                    if (s > bestScore) bestScore = s;
+                }
+            }
+
+            if (bestScore < confThreshold) continue;
+
+            let cx, cy, bw, bh;
+            if (isChannelFirst) {
+                cx = data[i];
+                cy = data[numAnchors + i];
+                bw = data[2 * numAnchors + i];
+                bh = data[3 * numAnchors + i];
+            } else {
+                const offset = i * numProps;
+                cx = data[offset];
+                cy = data[offset + 1];
+                bw = data[offset + 2];
+                bh = data[offset + 3];
+            }
+
+            if (cx > maxCoord) maxCoord = cx;
+            if (cy > maxCoord) maxCoord = cy;
+
+            candidates.push({ cx, cy, bw, bh, score: bestScore });
+        }
+
+        const coordScale = (maxCoord > 0 && maxCoord <= 2.0) ? MODEL_INPUT_SIZE : 1.0;
+        const scaleX = imgW / MODEL_INPUT_SIZE;
+        const scaleY = imgH / MODEL_INPUT_SIZE;
+
+        const boxes = candidates.map(c => {
+            const cx = c.cx * coordScale;
+            const cy = c.cy * coordScale;
+            const bw = c.bw * coordScale;
+            const bh = c.bh * coordScale;
+            const x1 = Math.max(0, (cx - bw / 2) * scaleX);
+            const y1 = Math.max(0, (cy - bh / 2) * scaleY);
+            const x2 = Math.min(imgW, (cx + bw / 2) * scaleX);
+            const y2 = Math.min(imgH, (cy + bh / 2) * scaleY);
+            return { x1, y1, x2, y2, score: c.score };
+        }).filter(b => (b.x2 - b.x1) > 2 && (b.y2 - b.y1) > 2);
+
+        boxes.sort((a, b) => b.score - a.score);
+        const kept = [];
+        for (let i = 0; i < boxes.length; i++) {
+            const curr = boxes[i];
+            let suppressed = false;
+            for (let j = 0; j < kept.length; j++) {
+                if (calcIoU(curr, kept[j]) > IOU_THRESHOLD) {
+                    suppressed = true;
+                    break;
+                }
+            }
+            if (!suppressed) {
+                kept.push(curr);
+                if (kept.length >= MAX_OBJECTS) break;
+            }
+        }
+        return kept;
+    }
+
+    async function runOnnxPainting() {
         if (!originalImage) return alert("先に写真を読み込んでください");
         
-        btnRunRF.disabled = true;
-        btnRunRF.innerText = "⏳ 解析中...";
+        btnRunAI.disabled = true;
+        btnRunAI.innerText = "⏳ 解析中...";
         statusText.innerText = "内蔵AIモデルで丸太を高速検出しています...";
         statusText.style.color = "#2e7d32";
 
+        let inputTensor = null;
+        let results = null;
         try {
-            if (!logModel) {
-                const rf = await window.roboflow.auth({ publishable_key: RF_API_KEY });
-                logModel = await rf.load({ model: PROJECT_NAME, version: MODEL_VERSION });
+            const tStart = performance.now();
+            if (!ortSession) {
+                await ensureOnnxSession();
                 const loadBtn = document.getElementById('btnLoadModel');
                 loadBtn.innerText = "✅ 認識モデル準備完了";
                 loadBtn.style.background = "#388e3c";
                 loadBtn.disabled = true;
             }
 
-            applyRoboflowConfig();
-
+            const selectedThreshold = parseFloat(document.getElementById('rfThresholdSelect')?.value) || 0.40;
             const cleanCanvas = getCleanImageCanvas();
-            const predictions = await logModel.detect(cleanCanvas);
-            detectedLogCount = predictions.length;
+            inputTensor = preprocessImageToTensor(cleanCanvas);
+
+            const inputName = ortSession.inputNames[0] || 'images';
+            const outputName = ortSession.outputNames[0] || 'output0';
+            results = await ortSession.run({ [inputName]: inputTensor });
+            const outputTensor = results[outputName];
+
+            const detections = postprocessYoloOutput(outputTensor, canvas.width, canvas.height, selectedThreshold);
+            detectedLogCount = detections.length;
 
             extractedMaskCtx.globalCompositeOperation = 'source-over';
             extractedMaskCtx.clearRect(0, 0, extractedMaskCanvas.width, extractedMaskCanvas.height);
             extractedMaskCtx.fillStyle = 'rgba(255, 0, 0, 1)';
 
-            predictions.forEach(p => {
-                const cx = p.bbox.x;
-                const cy = p.bbox.y;
-                const radiusX = p.bbox.width / 2;
-                const radiusY = p.bbox.height / 2;
+            detections.forEach(d => {
+                const cx = (d.x1 + d.x2) / 2;
+                const cy = (d.y1 + d.y2) / 2;
+                const radiusX = (d.x2 - d.x1) / 2;
+                const radiusY = (d.y2 - d.y1) / 2;
                 if (radiusX > 0 && radiusY > 0) {
                     extractedMaskCtx.beginPath();
                     extractedMaskCtx.ellipse(cx, cy, radiusX, radiusY, 0, 0, 2 * Math.PI);
@@ -461,10 +570,14 @@
             for (let i = 3; i < maskData.length; i += 4) {
                 if (maskData[i] > 128) extractedPixelCount++;
             }
+            const elapsedSec = ((performance.now() - tStart) / 1000).toFixed(2);
             document.getElementById('resultCount').innerText = detectedLogCount.toLocaleString();
             document.getElementById('pixelCount').innerText = extractedPixelCount.toLocaleString();
 
             renderScene();
+
+            statusText.innerText = `✅ ${detectedLogCount}本を赤塗りしました（${elapsedSec}秒）`;
+            statusText.style.color = "#2e7d32";
 
             // AI赤塗り完了後、自動的に寸法・補正設定ポップアップを表示
             document.getElementById('modalDetectedCount').innerText = detectedLogCount.toLocaleString();
@@ -476,8 +589,14 @@
             statusText.innerText = "エラーが発生しました: " + error.message;
             statusText.style.color = "#d32f2f";
         } finally {
-            btnRunRF.disabled = false;
-            btnRunRF.innerText = "⚡ AIで一括赤塗り";
+            if (inputTensor && typeof inputTensor.dispose === 'function') inputTensor.dispose();
+            if (results) {
+                Object.values(results).forEach(t => {
+                    if (t && typeof t.dispose === 'function') t.dispose();
+                });
+            }
+            btnRunAI.disabled = false;
+            btnRunAI.innerText = "⚡ AIで一括赤塗り";
         }
     }
 
