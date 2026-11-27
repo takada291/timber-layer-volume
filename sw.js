@@ -1,4 +1,4 @@
-const CACHE_NAME = 'timber-layer-v4.0-yolox';
+const CACHE_NAME = 'timber-layer-v4.1-yolox';
 const PRECACHE_URLS = [
     './',
     './index.html',
