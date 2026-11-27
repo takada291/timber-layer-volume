@@ -35,10 +35,20 @@
         .btn-orange { background: #e65100; }
         .btn-gray { background: #757575; }
         .btn-teal { background: #00897b; }
+        .btn-zoom { background: #1976d2; }
+        .btn-zoom.zoom-active { background: #e65100; }
         .btn:disabled { background: #bdbdbd !important; cursor: not-allowed; }
 
+        /* iOS Safariでのボケ対策：will-change: transformを除外したシンプルな表示構成 */
         #canvas-container { position: relative; width: 100%; max-height: 62vh; overflow: hidden; border: 1px solid #ccc; background: #000; border-radius: 8px; margin-bottom: 10px; text-align: center; }
-        canvas { max-width: 100%; height: auto; display: block; margin: 0 auto; touch-action: none; cursor: pointer; }
+        canvas { max-width: 100%; height: auto; display: block; margin: 0 auto; touch-action: none; cursor: pointer; transform-origin: center center; }
+
+        /* 拡大パネル（＋ － ← → ↑ ↓） */
+        #zoom-controls { display: none; gap: 5px; margin-bottom: 10px; padding: 8px; background: #e3f2fd; border: 1px solid #90caf9; border-radius: 8px; }
+        .zoom-ctrl-btn { flex: 1; height: 42px; border: 1px solid #64b5f6; border-radius: 6px; background: #fff; color: #0d47a1; font-size: 1.15rem; font-weight: bold; cursor: pointer; user-select: none; -webkit-user-select: none; touch-action: manipulation; display: flex; align-items: center; justify-content: center; padding: 0; }
+        .zoom-ctrl-btn:active { background: #bbdefb; transform: scale(0.96); }
+        .zoom-ctrl-btn.zoom-pm { background: #1565c0; color: #fff; border-color: #0d47a1; }
+        .zoom-ctrl-btn.zoom-pm:active { background: #0d47a1; }
         
         .control-group { margin-bottom: 15px; background: #fff3e0; padding: 12px; border-radius: 8px; border: 1px solid #ffcc80; }
         .control-group.rf-group { background: #e8f5e9; border-color: #81c784; margin-bottom: 0; }
@@ -63,7 +73,7 @@
 
         /* 十字マーカー確定バー */
         #crosshair-action-bar { display: none; background: #fff3e0; border: 2px solid #ffb74d; border-radius: 8px; padding: 10px; margin-bottom: 12px; }
-        .action-bar-btns { display: flex; gap: 8px; }
+        .action-bar-sub-btns { display: flex; gap: 8px; margin-bottom: 8px; }
 
         /* ポップアップモーダル用スタイル */
         .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.55); z-index: 99; overflow-y: auto; }
@@ -79,7 +89,7 @@
 
 <div class="card">
     <div class="header">
-        <h2>層積検尺 v4.0 <span style="font-size:0.72em; color:#2e7d32;">YOLOX-S</span></h2>
+        <h2>層積検尺 v4.1 <span style="font-size:0.72em; color:#2e7d32;">YOLOX-S</span></h2>
     </div>
     
     <div class="photo-buttons">
@@ -99,15 +109,26 @@
         <canvas id="mainCanvas"></canvas>
     </div>
 
+    <!-- 拡大操作パネル（拡大ボタンを押した時のみ表示） -->
+    <div id="zoom-controls">
+        <button type="button" class="zoom-ctrl-btn zoom-pm" onclick="adjustZoom(0.4)" aria-label="拡大">＋</button>
+        <button type="button" class="zoom-ctrl-btn zoom-pm" onclick="adjustZoom(-0.4)" aria-label="縮小">－</button>
+        <button type="button" class="zoom-ctrl-btn" data-pan="left" aria-label="左へ移動">←</button>
+        <button type="button" class="zoom-ctrl-btn" data-pan="right" aria-label="右へ移動">→</button>
+        <button type="button" class="zoom-ctrl-btn" data-pan="up" aria-label="上へ移動">↑</button>
+        <button type="button" class="zoom-ctrl-btn" data-pan="down" aria-label="下へ移動">↓</button>
+    </div>
+
     <!-- 十字マーカー調整・確定バー（AI赤塗り後に出現） -->
     <div id="crosshair-action-bar">
         <div style="font-size: 0.85em; font-weight: bold; color: #e65100; margin-bottom: 8px; text-align: center;">
             👆 画面上の2つの「＋」を指でポールの両端へ移動してください
         </div>
-        <div class="action-bar-btns">
-            <button class="btn btn-gray" style="flex: 0.45; margin-bottom: 0; padding: 10px 6px; font-size: 0.85rem;" onclick="openScaleModal()">⚙️ 寸法設定</button>
-            <button class="btn btn-orange" style="flex: 1; margin-bottom: 0; padding: 10px;" onclick="confirmCrosshairScale()">✅ ポール位置を確定して計算</button>
+        <div class="action-bar-sub-btns">
+            <button type="button" class="btn btn-zoom" id="btnToggleZoom" style="flex: 1; margin-bottom: 0; padding: 9px 6px; font-size: 0.9rem;" onclick="toggleZoomMode()">🔍 拡大</button>
+            <button type="button" class="btn btn-gray" style="flex: 1; margin-bottom: 0; padding: 9px 6px; font-size: 0.9rem;" onclick="openScaleModal()">⚙️ 寸法設定</button>
         </div>
+        <button type="button" class="btn btn-orange" style="margin-bottom: 0; padding: 11px;" onclick="confirmCrosshairScale()">✅ ポール位置を確定して計算</button>
     </div>
 
     <div class="result-box">
@@ -213,6 +234,7 @@
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('./sw.js').catch(err => console.log('SW failed!', err));
         }
+        initPanButtons();
         loadLastLayerParams();
     });
 
@@ -241,6 +263,117 @@
     let currentAreaM2 = 0;
     let currentVolumeM3 = 0;
     let previewDataUrl = null;
+
+    // 拡大・移動（ズーム＆パン）制御変数
+    let isZoomPanelOpen = false;
+    let zoomScale = 1.0;
+    let panX = 0;
+    let panY = 0;
+    let panRepeatTimer = null;
+
+    // ==========================================
+    // 拡大・縮小・矢印移動ロジック（AI検知アプリ共通仕様）
+    // ==========================================
+    function toggleZoomMode() {
+        if (!originalImage) return alert("先に写真を読み込んでください");
+        if (!isZoomPanelOpen) {
+            isZoomPanelOpen = true;
+            zoomScale = 1.8;
+            // デフォルトの下部ポール付近が見えやすいよう少し下寄せに初期パン
+            const baseH = canvas.offsetHeight || 225;
+            panX = 0;
+            panY = -Math.round((baseH * zoomScale - baseH) * 0.35);
+            clampPan();
+            applyZoomTransform();
+            renderScene();
+            document.getElementById('zoom-controls').style.display = 'flex';
+            const btn = document.getElementById('btnToggleZoom');
+            btn.innerText = "🔍 戻す";
+            btn.classList.add('zoom-active');
+        } else {
+            resetZoom();
+        }
+    }
+
+    function resetZoom() {
+        stopPanRepeat();
+        isZoomPanelOpen = false;
+        zoomScale = 1.0;
+        panX = 0;
+        panY = 0;
+        applyZoomTransform();
+        if (originalImage) renderScene();
+        document.getElementById('zoom-controls').style.display = 'none';
+        const btn = document.getElementById('btnToggleZoom');
+        if (btn) {
+            btn.innerText = "🔍 拡大";
+            btn.classList.remove('zoom-active');
+        }
+    }
+
+    function adjustZoom(delta) {
+        if (!originalImage) return;
+        zoomScale = Math.max(1.0, Math.min(4.0, Math.round((zoomScale + delta) * 10) / 10));
+        clampPan();
+        applyZoomTransform();
+        renderScene();
+    }
+
+    function panView(direction) {
+        if (!originalImage || zoomScale <= 1.0) return;
+        const baseW = canvas.offsetWidth || 300;
+        const baseH = canvas.offsetHeight || 225;
+        const stepX = Math.max(36, baseW * 0.16);
+        const stepY = Math.max(36, baseH * 0.16);
+
+        if (direction === 'left')  panX += stepX;
+        if (direction === 'right') panX -= stepX;
+        if (direction === 'up')    panY += stepY;
+        if (direction === 'down')  panY -= stepY;
+
+        clampPan();
+        applyZoomTransform();
+    }
+
+    function clampPan() {
+        const baseW = canvas.offsetWidth || 0;
+        const baseH = canvas.offsetHeight || 0;
+        const maxPanX = Math.max(0, (baseW * zoomScale - baseW) / 2);
+        const maxPanY = Math.max(0, (baseH * zoomScale - baseH) / 2);
+        panX = Math.max(-maxPanX, Math.min(maxPanX, panX));
+        panY = Math.max(-maxPanY, Math.min(maxPanY, panY));
+    }
+
+    function applyZoomTransform() {
+        if (zoomScale <= 1.0) {
+            canvas.style.transform = '';
+        } else {
+            canvas.style.transform = `translate(${panX}px, ${panY}px) scale(${zoomScale})`;
+        }
+    }
+
+    function stopPanRepeat() {
+        if (panRepeatTimer) {
+            clearInterval(panRepeatTimer);
+            panRepeatTimer = null;
+        }
+    }
+
+    function initPanButtons() {
+        document.querySelectorAll('[data-pan]').forEach(btn => {
+            const dir = btn.getAttribute('data-pan');
+            btn.addEventListener('pointerdown', (e) => {
+                e.preventDefault();
+                panView(dir);
+                stopPanRepeat();
+                panRepeatTimer = setInterval(() => panView(dir), 110);
+            });
+            btn.addEventListener('pointerup', stopPanRepeat);
+            btn.addEventListener('pointerleave', stopPanRepeat);
+            btn.addEventListener('pointercancel', stopPanRepeat);
+            btn.addEventListener('contextmenu', (e) => e.preventDefault());
+        });
+    }
 
     // ==========================================
     // クイックボタン＆前回設定の記憶処理
@@ -304,12 +437,18 @@
                     height = Math.floor(height * (maxWidth / width));
                     width = maxWidth;
                 }
+                resetZoom();
                 canvas.width = width;
                 canvas.height = height;
                 ctx.imageSmoothingEnabled = true;
                 ctx.imageSmoothingQuality = 'high';
                 ctx.drawImage(img, 0, 0, width, height);
                 originalImage = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+                // iOS Safariで縦持ち読込時に描画バッファを確実に最新解像度へ更新
+                canvas.style.display = 'none';
+                void canvas.offsetHeight;
+                canvas.style.display = 'block';
                 
                 if (!extractedMaskCanvas) {
                     extractedMaskCanvas = document.createElement('canvas');
@@ -520,6 +659,7 @@
     async function runOnnxPainting() {
         if (!originalImage) return alert("先に写真を読み込んでください");
         
+        resetZoom();
         btnRunAI.disabled = true;
         btnRunAI.innerText = "⏳ 解析中...";
         statusText.innerText = "内蔵YOLOX-Sモデルで丸太を高速検出しています...";
@@ -549,6 +689,7 @@
             const detections = postprocessYoloxOutput(outputTensor, canvas.width, canvas.height, selectedThreshold);
             detectedLogCount = detections.length;
 
+            // マスクへ不透明の赤で塗りつぶし（重複ピクセルは1回のみカウント＝ダブルカウントなし）
             extractedMaskCtx.globalCompositeOperation = 'source-over';
             extractedMaskCtx.clearRect(0, 0, extractedMaskCanvas.width, extractedMaskCanvas.height);
             extractedMaskCtx.fillStyle = 'rgba(255, 0, 0, 1)';
@@ -565,7 +706,7 @@
                 }
             });
 
-            // 赤塗りピクセル数と本数を更新
+            // 赤塗りピクセル数（重複を除いた実面積ピクセル）と本数を更新
             const maskData = extractedMaskCtx.getImageData(0, 0, canvas.width, canvas.height).data;
             extractedPixelCount = 0;
             for (let i = 3; i < maskData.length; i += 4) {
@@ -602,7 +743,7 @@
     }
 
     // ==========================================
-    // ポップアップ制御と2つの十字マーカー初期配置
+    // ポップアップ制御と2つの十字マーカー初期配置（中央下に横配置）
     // ==========================================
     function openScaleModal() {
         syncQuickButtons();
@@ -618,10 +759,11 @@
         saveLastLayerParams();
         document.getElementById('scaleSettingsModal').style.display = 'none';
 
+        // デフォルトは「中央下にポールを寝かせた状態（横配置）」
         if (crosshairs.length !== 2) {
             crosshairs = [
-                { x: Math.round(canvas.width * 0.78), y: Math.round(canvas.height * 0.28) },
-                { x: Math.round(canvas.width * 0.78), y: Math.round(canvas.height * 0.75) }
+                { x: Math.round(canvas.width * 0.30), y: Math.round(canvas.height * 0.80) },
+                { x: Math.round(canvas.width * 0.70), y: Math.round(canvas.height * 0.80) }
             ];
         }
 
@@ -632,7 +774,7 @@
             confirmCrosshairScale();
         } else {
             renderScene();
-            statusText.innerText = `3. ${detectedLogCount}本を赤塗り済み：2つの「＋」をポールの両端へ移動し確定してください`;
+            statusText.innerText = `3. ${detectedLogCount}本を赤塗り済み：2つの「＋」をポールの両端へ合わせてください（細かい調整は「🔍 拡大」）`;
             statusText.style.color = "#e65100";
         }
     }
@@ -654,21 +796,22 @@
         if (showCrosshairs && crosshairs.length === 2) {
             const p1 = crosshairs[0];
             const p2 = crosshairs[1];
+            const lineScale = 1 / Math.pow(zoomScale, 0.75);
 
             ctx.save();
             ctx.beginPath();
             ctx.moveTo(p1.x, p1.y);
             ctx.lineTo(p2.x, p2.y);
             ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
-            ctx.lineWidth = 6;
+            ctx.lineWidth = Math.max(2.5, 6 * lineScale);
             ctx.stroke();
 
             ctx.beginPath();
             ctx.moveTo(p1.x, p1.y);
             ctx.lineTo(p2.x, p2.y);
             ctx.strokeStyle = isScaleConfirmed ? '#00e676' : '#ffeb3b';
-            ctx.lineWidth = 3;
-            if (!isScaleConfirmed) ctx.setLineDash([8, 6]);
+            ctx.lineWidth = Math.max(1.5, 3 * lineScale);
+            if (!isScaleConfirmed) ctx.setLineDash([8 * lineScale, 6 * lineScale]);
             ctx.stroke();
             ctx.restore();
 
@@ -678,7 +821,9 @@
     }
 
     function drawCrosshair(x, y, isDragging) {
-        const arm = isDragging ? Math.max(48, canvas.width * 0.055) : Math.max(36, canvas.width * 0.04);
+        const uiScale = 1 / Math.pow(zoomScale, 0.75);
+        const baseArm = isDragging ? Math.max(48, canvas.width * 0.055) : Math.max(36, canvas.width * 0.04);
+        const arm = Math.max(16, baseArm * uiScale);
 
         ctx.save();
 
@@ -688,7 +833,7 @@
         ctx.moveTo(x, y - arm);
         ctx.lineTo(x, y + arm);
         ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 8;
+        ctx.lineWidth = Math.max(3.5, 8 * uiScale);
         ctx.lineCap = 'round';
         ctx.stroke();
 
@@ -698,18 +843,18 @@
         ctx.moveTo(x, y - arm);
         ctx.lineTo(x, y + arm);
         ctx.strokeStyle = isDragging ? '#ff6d00' : '#d50000';
-        ctx.lineWidth = 4;
+        ctx.lineWidth = Math.max(1.8, 4 * uiScale);
         ctx.lineCap = 'round';
         ctx.stroke();
 
         ctx.beginPath();
-        ctx.arc(x, y, isDragging ? 14 : 10, 0, 2 * Math.PI);
+        ctx.arc(x, y, Math.max(5, (isDragging ? 14 : 10) * uiScale), 0, 2 * Math.PI);
         ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 2.5;
+        ctx.lineWidth = Math.max(1.2, 2.5 * uiScale);
         ctx.stroke();
 
         ctx.beginPath();
-        ctx.arc(x, y, 3, 0, 2 * Math.PI);
+        ctx.arc(x, y, Math.max(1.8, 3 * uiScale), 0, 2 * Math.PI);
         ctx.fillStyle = '#00e676';
         ctx.fill();
 
@@ -717,7 +862,7 @@
     }
 
     // ==========================================
-    // 十字マーカーのタッチ・マウスドラッグ操作
+    // 十字マーカーのタッチ・マウスドラッグ操作（拡大対応）
     // ==========================================
     function getCanvasCoords(e) {
         const rect = canvas.getBoundingClientRect();
@@ -744,7 +889,7 @@
 
         const d0 = Math.hypot(x - crosshairs[0].x, y - crosshairs[0].y);
         const d1 = Math.hypot(x - crosshairs[1].x, y - crosshairs[1].y);
-        const hitRadius = Math.max(80, canvas.width * 0.12);
+        const hitRadius = Math.max(32, Math.max(80, canvas.width * 0.12) / zoomScale);
 
         if (d0 <= d1 && d0 < hitRadius) {
             draggingIndex = 0;
@@ -807,6 +952,7 @@
 
         pixelsPerMeter = pixelDist / realPoleMeters;
         isScaleConfirmed = true;
+        resetZoom();
         renderScene();
         calculateVolume();
 
